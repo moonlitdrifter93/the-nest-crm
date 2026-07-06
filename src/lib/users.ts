@@ -21,8 +21,8 @@ export interface TeamUser {
   fundOwners?: string[]; // owners whose funds are visible when not seesAllFunds
 }
 
-// Emails other than Matthew's follow the firstname.lastname@ pattern —
-// correct them here if an address differs before creating the auth accounts.
+// Matthew's and Raph's addresses are confirmed; Jack's and Tim's are assumed
+// firstname.lastname@ — correct here before creating their auth accounts.
 export const TEAM: TeamUser[] = [
   {
     id: "matthew",
@@ -33,7 +33,7 @@ export const TEAM: TeamUser[] = [
   {
     id: "raphael",
     name: "Raphael Pitts",
-    email: "raphael.pitts@thenest.com.au",
+    email: "raph.pitts@thenest.com.au",
     seesAllFunds: false,
     fundOwners: ["Raphael Pitts", "Jack Woods"],
   },

@@ -59,12 +59,12 @@ To create the logins, in the Supabase dashboard go to **Authentication →
 Users → Add user** (tick *Auto Confirm*) and add:
 
 - `matthew.downing@thenest.com.au` — full fund view
-- `raphael.pitts@thenest.com.au` — pod view (his + Jack's funds)
+- `raph.pitts@thenest.com.au` — pod view (his + Jack's funds)
 
 (and Jack / Tim the same way when wanted). The email must match the profile
-in `src/lib/users.ts` — Matthew's is confirmed; the others are assumed to
-follow `firstname.lastname@thenest.com.au`, so correct them there first if
-they differ.
+in `src/lib/users.ts` — Matthew's and Raph's are confirmed; Jack's and
+Tim's are assumed to follow `firstname.lastname@thenest.com.au`, so correct
+them there first if they differ.
 
 **Local mode (no Supabase, dev only):** a simple team picker with default
 passwords (`downing2026`, `pitts2026`, `woods2026`, `easterbrook2026`;
