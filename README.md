@@ -17,6 +17,14 @@ engine that surfaces the firms worth acting on next.
     follow-up, or an open action.
 - **Pipeline** — the full table: search, status/owner/asset-class filters,
   sortable columns, click any row to edit.
+- **Live funds** — the funds actually on The Nest (Live), plus Onboarded
+  firms coming online. What you see depends on who you sign in as:
+  - *Matthew Downing* — every fund (full view).
+  - *Raphael Pitts / Jack Woods* — a pod: each sees the funds allocated to
+    either of them.
+  - *Timothy Easterbrook* — his own allocations.
+
+  Visibility rules live in `src/lib/users.ts` and are trivial to adjust.
 
 ## Priority score
 
@@ -40,11 +48,24 @@ npm install
 npm run dev
 ```
 
-Password: `thenest2026` (override with `VITE_APP_PASSWORD`).
+Sign in as yourself. Default passwords (override via env vars
+`VITE_PW_MATTHEW`, `VITE_PW_RAPHAEL`, `VITE_PW_JACK`, `VITE_PW_TIMOTHY`):
+
+| User                | Default password  |
+| ------------------- | ----------------- |
+| Matthew Downing     | `downing2026`     |
+| Raphael Pitts       | `pitts2026`       |
+| Jack Woods          | `woods2026`       |
+| Timothy Easterbrook | `easterbrook2026` |
+
+> Sign-in controls which *view* each person gets. Like the old CRM's shared
+> password, it is client-side only — not hard security. Real enforcement
+> arrives with Microsoft sign-in + Supabase RLS (see roadmap).
 
 With no Supabase configured the app runs in **local mode**: data lives in
 `localStorage`, seeded from the baked-in snapshot (`src/data/seed.json`,
-export dated 2026-06-18). The header shows which mode you're in.
+pulled live from the legacy CRM's database on 2026-07-06). The header shows
+which mode you're in.
 
 ## Supabase setup (dedicated project)
 
@@ -73,15 +94,24 @@ build (`npm run build`, publish `dist`). Add the two Supabase env vars, and
 `VITE_APP_PASSWORD` if you want a different password. Every push to the
 default branch deploys.
 
-## Refreshing the seed from a CRM export
+## Refreshing the seed
+
+Straight from the legacy CRM's database (what the team is editing today):
+
+```bash
+node scripts/pull-live.mjs
+```
+
+Or from a JSON export file:
 
 ```bash
 node scripts/prepare-seed.mjs path/to/export.json
 ```
 
-Deduplicates, fixes legacy statuses, assigns stable ids, writes
+Both deduplicate, fix legacy statuses, assign stable ids, and write
 `src/data/seed.json`. Note the seed only matters for first-run/local mode —
-once Supabase holds data, it wins.
+once the new Supabase holds data, it wins; do a final `pull-live` +
+re-deploy just before cutting over.
 
 ## Roadmap
 

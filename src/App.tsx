@@ -1,38 +1,68 @@
 import { useEffect, useMemo, useState } from "react";
 import { FirmDrawer } from "./components/FirmDrawer";
+import { LiveFundsView } from "./components/LiveFundsView";
 import { PipelineView } from "./components/PipelineView";
 import { PriorityView } from "./components/PriorityView";
 import { daysUntil, todayISO } from "./lib/format";
 import { deleteFirm, loadFirms, newFirmId, saveFirm, supabaseEnabled } from "./lib/store";
+import { checkPassword, TEAM, userById, type TeamUser } from "./lib/users";
 import type { Firm } from "./types";
 
-const APP_PW = (import.meta.env.VITE_APP_PASSWORD as string | undefined) || "thenest2026";
-const AUTH_KEY = "nest_crm_auth";
+const AUTH_KEY = "nest_crm_user";
 
-type Tab = "priority" | "pipeline";
+type Tab = "priority" | "pipeline" | "funds";
 
 export default function App() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === "1");
-  if (!authed) return <Gate onPass={() => setAuthed(true)} />;
-  return <Crm />;
+  const [user, setUser] = useState<TeamUser | null>(() =>
+    userById(sessionStorage.getItem(AUTH_KEY)),
+  );
+
+  if (!user) {
+    return (
+      <Gate
+        onPass={(u) => {
+          sessionStorage.setItem(AUTH_KEY, u.id);
+          setUser(u);
+        }}
+      />
+    );
+  }
+  return (
+    <Crm
+      user={user}
+      onSignOut={() => {
+        sessionStorage.removeItem(AUTH_KEY);
+        setUser(null);
+      }}
+    />
+  );
 }
 
-function Gate({ onPass }: { onPass: () => void }) {
+function Gate({ onPass }: { onPass: (user: TeamUser) => void }) {
+  const [who, setWho] = useState(TEAM[0].id);
   const [pw, setPw] = useState("");
   const [err, setErr] = useState(false);
+
   return (
     <div className="gate">
       <h1>The Nest</h1>
       <div className="sub">Fund Manager CRM</div>
       <form
+        style={{ flexDirection: "column", alignItems: "stretch" }}
         onSubmit={(e) => {
           e.preventDefault();
-          if (pw === APP_PW) {
-            sessionStorage.setItem(AUTH_KEY, "1");
-            onPass();
-          } else setErr(true);
+          const u = userById(who);
+          if (u && checkPassword(u, pw)) onPass(u);
+          else setErr(true);
         }}
       >
+        <select value={who} onChange={(e) => setWho(e.target.value)}>
+          {TEAM.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}
+            </option>
+          ))}
+        </select>
         <input
           type="password"
           placeholder="Password"
@@ -52,7 +82,7 @@ function Gate({ onPass }: { onPass: () => void }) {
   );
 }
 
-function Crm() {
+function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   const [firms, setFirms] = useState<Firm[] | null>(null);
   const [loadErr, setLoadErr] = useState("");
   const [tab, setTab] = useState<Tab>("priority");
@@ -111,6 +141,7 @@ function Crm() {
       id: newFirmId(`new-firm-${Date.now()}`, ids),
       name: "",
       status: "Prospecting",
+      owner: user.name,
       last_contact: todayISO(),
       asset_classes: [],
     };
@@ -127,6 +158,9 @@ function Crm() {
         <span className={`sync${supabaseEnabled ? " on" : ""}`}>
           {supabaseEnabled ? "● synced via supabase" : "○ local only — supabase not configured"}
         </span>
+        <span className="sync">
+          {user.email ?? user.name} · <button onClick={onSignOut}>sign out</button>
+        </span>
       </header>
 
       <nav className="tabs">
@@ -135,6 +169,9 @@ function Crm() {
         </button>
         <button className={tab === "pipeline" ? "on" : ""} onClick={() => setTab("pipeline")}>
           Pipeline
+        </button>
+        <button className={tab === "funds" ? "on" : ""} onClick={() => setTab("funds")}>
+          Live funds
         </button>
       </nav>
 
@@ -157,6 +194,9 @@ function Crm() {
       {firms && tab === "priority" && <PriorityView firms={firms} onOpen={(f) => setOpenId(f.id)} />}
       {firms && tab === "pipeline" && (
         <PipelineView firms={firms} onOpen={(f) => setOpenId(f.id)} onAdd={handleAdd} />
+      )}
+      {firms && tab === "funds" && (
+        <LiveFundsView firms={firms} user={user} onOpen={(f) => setOpenId(f.id)} />
       )}
 
       {open && (
