@@ -95,12 +95,24 @@ project, so the two never fight over data.
    automatically (sign in first — the database requires it). From then on
    Supabase is the source of truth.
 
-## Deploying to Netlify
+## Deploying
 
-Connect this repo to a new Netlify site — `netlify.toml` already sets the
-build (`npm run build`, publish `dist`). Add the two Supabase env vars, and
-`VITE_APP_PASSWORD` if you want a different password. Every push to the
-default branch deploys.
+The app is a static build (`npm run build` → `dist/`) — it needs no server
+of its own, so any static host works. **Cloudflare Pages** is the
+recommended one: The Nest's platform already runs on Cloudflare, the
+thenest.com.au DNS lives there, and the repo connects directly.
+
+1. Cloudflare dashboard → **Workers & Pages → Create → Pages →
+   Connect to Git** → select `moonlitdrifter93/the-nest-crm`.
+2. Build command `npm run build`, build output directory `dist`.
+3. Add the two `VITE_SUPABASE_*` env vars under the project's settings.
+4. After the first deploy, open the project's **Custom domains** tab and add
+   `crm.thenest.com.au` — with DNS already on Cloudflare it creates the
+   record and certificate automatically.
+
+Every push to `main` deploys. (`netlify.toml` is kept in the repo so
+Netlify remains a drop-in alternative; `public/_redirects` covers SPA
+routing on either host.)
 
 ## Refreshing the seed
 
