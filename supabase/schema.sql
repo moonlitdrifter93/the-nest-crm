@@ -10,11 +10,20 @@ create table if not exists public.firms (
 
 alter table public.firms enable row level security;
 
--- v1 access model: the anon key is the shared team credential (the app sits
--- behind its own password gate, same trust model as the old CRM). Tighten to
--- per-user Supabase Auth policies when accounts are introduced alongside the
--- Outlook integration.
-create policy "team read" on public.firms for select using (true);
-create policy "team insert" on public.firms for insert with check (true);
-create policy "team update" on public.firms for update using (true);
-create policy "team delete" on public.firms for delete using (true);
+-- Only signed-in team members can touch the data. Accounts are created in
+-- the dashboard (Authentication → Users → Add user → email + password,
+-- auto-confirm on) for each address listed in src/lib/users.ts. The anon
+-- key alone grants nothing.
+create policy "team read" on public.firms
+  for select to authenticated using (true);
+create policy "team insert" on public.firms
+  for insert to authenticated with check (true);
+create policy "team update" on public.firms
+  for update to authenticated using (true);
+create policy "team delete" on public.firms
+  for delete to authenticated using (true);
+
+-- Note: any authenticated account in this project can read/write all firms;
+-- the per-person fund views are applied in the app. If you later want
+-- Raph's reduced view enforced at the database level too, add per-row
+-- policies keyed on auth.email() against data->>'owner'.

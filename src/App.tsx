@@ -4,8 +4,8 @@ import { LiveFundsView } from "./components/LiveFundsView";
 import { PipelineView } from "./components/PipelineView";
 import { PriorityView } from "./components/PriorityView";
 import { daysUntil, todayISO } from "./lib/format";
-import { deleteFirm, loadFirms, newFirmId, saveFirm, supabaseEnabled } from "./lib/store";
-import { checkPassword, TEAM, userById, type TeamUser } from "./lib/users";
+import { client, deleteFirm, loadFirms, newFirmId, saveFirm, supabaseEnabled } from "./lib/store";
+import { checkPassword, TEAM, userByEmail, userById, type TeamUser } from "./lib/users";
 import type { Firm } from "./types";
 
 const AUTH_KEY = "nest_crm_user";
@@ -13,13 +13,116 @@ const AUTH_KEY = "nest_crm_user";
 type Tab = "priority" | "pipeline" | "funds";
 
 export default function App() {
+  // With Supabase configured, sign-in is a real Supabase Auth account.
+  // Without it (local/dev mode), a simple team picker stands in.
+  return supabaseEnabled ? <SupabaseApp /> : <LocalApp />;
+}
+
+function SupabaseApp() {
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<TeamUser | null>(null);
+
+  useEffect(() => {
+    client()
+      .auth.getSession()
+      .then(({ data }) => {
+        setUser(userByEmail(data.session?.user?.email));
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="gate">Signing in…</div>;
+  }
+  if (!user) {
+    return <EmailGate onSignedIn={setUser} />;
+  }
+  return (
+    <Crm
+      user={user}
+      onSignOut={() => {
+        void client().auth.signOut();
+        setUser(null);
+      }}
+    />
+  );
+}
+
+function EmailGate({ onSignedIn }: { onSignedIn: (user: TeamUser) => void }) {
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    setErr("");
+    const { data, error } = await client().auth.signInWithPassword({
+      email: email.trim(),
+      password: pw,
+    });
+    if (error) {
+      setErr(error.message);
+      setBusy(false);
+      return;
+    }
+    const u = userByEmail(data.user?.email);
+    if (!u) {
+      setErr(`${data.user?.email} has no CRM profile — add it in src/lib/users.ts.`);
+      await client().auth.signOut();
+      setBusy(false);
+      return;
+    }
+    onSignedIn(u);
+  }
+
+  return (
+    <div className="gate">
+      <h1>The Nest</h1>
+      <div className="sub">Fund Manager CRM</div>
+      <form
+        style={{ flexDirection: "column", alignItems: "stretch" }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        <input
+          type="email"
+          placeholder="you@thenest.com.au"
+          value={email}
+          autoFocus
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setErr("");
+          }}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={pw}
+          onChange={(e) => {
+            setPw(e.target.value);
+            setErr("");
+          }}
+        />
+        <button className="btn primary" type="submit" disabled={busy}>
+          {busy ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+      {err && <div className="err">{err}</div>}
+    </div>
+  );
+}
+
+function LocalApp() {
   const [user, setUser] = useState<TeamUser | null>(() =>
     userById(sessionStorage.getItem(AUTH_KEY)),
   );
 
   if (!user) {
     return (
-      <Gate
+      <LocalGate
         onPass={(u) => {
           sessionStorage.setItem(AUTH_KEY, u.id);
           setUser(u);
@@ -38,7 +141,7 @@ export default function App() {
   );
 }
 
-function Gate({ onPass }: { onPass: (user: TeamUser) => void }) {
+function LocalGate({ onPass }: { onPass: (user: TeamUser) => void }) {
   const [who, setWho] = useState(TEAM[0].id);
   const [pw, setPw] = useState("");
   const [err, setErr] = useState(false);
@@ -46,7 +149,7 @@ function Gate({ onPass }: { onPass: (user: TeamUser) => void }) {
   return (
     <div className="gate">
       <h1>The Nest</h1>
-      <div className="sub">Fund Manager CRM</div>
+      <div className="sub">Fund Manager CRM · local mode</div>
       <form
         style={{ flexDirection: "column", alignItems: "stretch" }}
         onSubmit={(e) => {

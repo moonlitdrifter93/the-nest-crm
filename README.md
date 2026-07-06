@@ -48,24 +48,30 @@ npm install
 npm run dev
 ```
 
-Sign in as yourself. Default passwords (override via env vars
-`VITE_PW_MATTHEW`, `VITE_PW_RAPHAEL`, `VITE_PW_JACK`, `VITE_PW_TIMOTHY`):
+## Signing in
 
-| User                | Default password  |
-| ------------------- | ----------------- |
-| Matthew Downing     | `downing2026`     |
-| Raphael Pitts       | `pitts2026`       |
-| Jack Woods          | `woods2026`       |
-| Timothy Easterbrook | `easterbrook2026` |
+**With Supabase configured (production):** each person has a real account —
+email + password, checked by Supabase Auth, session managed server-side.
+Passwords are never in the app bundle, and the database only answers to
+signed-in accounts.
 
-> Sign-in controls which *view* each person gets. Like the old CRM's shared
-> password, it is client-side only — not hard security. Real enforcement
-> arrives with Microsoft sign-in + Supabase RLS (see roadmap).
+To create the logins, in the Supabase dashboard go to **Authentication →
+Users → Add user** (tick *Auto Confirm*) and add:
 
-With no Supabase configured the app runs in **local mode**: data lives in
-`localStorage`, seeded from the baked-in snapshot (`src/data/seed.json`,
-pulled live from the legacy CRM's database on 2026-07-06). The header shows
-which mode you're in.
+- `matthew.downing@thenest.com.au` — full fund view
+- `raphael.pitts@thenest.com.au` — pod view (his + Jack's funds)
+
+(and Jack / Tim the same way when wanted). The email must match the profile
+in `src/lib/users.ts` — Matthew's is confirmed; the others are assumed to
+follow `firstname.lastname@thenest.com.au`, so correct them there first if
+they differ.
+
+**Local mode (no Supabase, dev only):** a simple team picker with default
+passwords (`downing2026`, `pitts2026`, `woods2026`, `easterbrook2026`;
+override via `VITE_PW_*` env vars). This is view-switching convenience, not
+security — data lives in `localStorage`, seeded from the baked-in snapshot
+(`src/data/seed.json`, pulled live from the legacy CRM's database on
+2026-07-06). The header shows which mode you're in.
 
 ## Supabase setup (dedicated project)
 
@@ -76,7 +82,8 @@ project, so the two never fight over data.
 2. In the SQL editor, run `supabase/schema.sql` (creates the `firms` table —
    one row per firm, so concurrent edits to different firms can't clobber
    each other, unlike the old single-JSON-blob model).
-3. Set env vars (locally in `.env.local`, and in Netlify → Site settings →
+3. Create the team's login accounts (see **Signing in** above).
+4. Set env vars (locally in `.env.local`, and in Netlify → Site settings →
    Environment variables):
 
    ```
@@ -84,8 +91,9 @@ project, so the two never fight over data.
    VITE_SUPABASE_ANON_KEY=<anon key>
    ```
 
-4. On first load with an empty table the app pushes the baked-in seed up
-   automatically. From then on Supabase is the source of truth.
+5. On first load with an empty table the app pushes the baked-in seed up
+   automatically (sign in first — the database requires it). From then on
+   Supabase is the source of truth.
 
 ## Deploying to Netlify
 
@@ -117,9 +125,7 @@ re-deploy just before cutting over.
 
 - **Outlook / Microsoft 365 integration** (next up): register an Azure AD app
   in the thenest.com.au tenant, then use MSAL + Microsoft Graph to sign in
-  with @thenest.com.au accounts, log emails against firms (match on contact
-  email domain), and push follow-ups to Outlook calendar. Replaces the shared
-  password with real per-user sign-in, at which point the Supabase RLS
-  policies in `supabase/schema.sql` should be tightened to authenticated
-  users.
+  with @thenest.com.au accounts (replacing Supabase email/password with
+  single sign-on), log emails against firms (match on contact email domain),
+  and push follow-ups to Outlook calendar.
 - Calendar / SPIF tracker / documents tabs from the old CRM as needed.

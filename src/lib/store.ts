@@ -24,7 +24,8 @@ const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const supabaseEnabled = Boolean(SB_URL && SB_KEY);
 
 let sb: SupabaseClient | null = null;
-function client(): SupabaseClient {
+// Only call when supabaseEnabled; also used by App for Supabase Auth sign-in.
+export function client(): SupabaseClient {
   if (!sb) sb = createClient(SB_URL!, SB_KEY!);
   return sb;
 }
