@@ -98,21 +98,24 @@ project, so the two never fight over data.
 ## Deploying
 
 The app is a static build (`npm run build` → `dist/`) — it needs no server
-of its own, so any static host works. **Cloudflare Pages** is the
-recommended one: The Nest's platform already runs on Cloudflare, the
-thenest.com.au DNS lives there, and the repo connects directly.
+of its own. It deploys to **Cloudflare Workers** (static assets), driven by
+the committed `wrangler.jsonc`:
 
-1. Cloudflare dashboard → **Workers & Pages → Create → Pages →
-   Connect to Git** → select `moonlitdrifter93/the-nest-crm`.
-2. Build command `npm run build`, build output directory `dist`.
-3. Add the two `VITE_SUPABASE_*` env vars under the project's settings.
-4. After the first deploy, open the project's **Custom domains** tab and add
-   `crm.thenest.com.au` — with DNS already on Cloudflare it creates the
-   record and certificate automatically.
+1. Cloudflare dashboard → **Workers & Pages → Create → Connect to Git** →
+   select `moonlitdrifter93/the-nest-crm`.
+2. Build command `npm run build`, deploy command `npx wrangler deploy`.
+3. Set the two `VITE_SUPABASE_*` env vars as **build** variables
+   (worker Settings → **Build** → Variables and secrets). Vite bakes them
+   in at build time — runtime worker variables have no effect on a static
+   bundle, so they must live in the build section.
+4. Add the domain under the worker's **Settings → Domains & Routes →
+   Add → Custom domain** → `crm.thenest.com.au` — with the zone already on
+   Cloudflare the record and certificate are created automatically.
 
-Every push to `main` deploys. (`netlify.toml` is kept in the repo so
-Netlify remains a drop-in alternative; `public/_redirects` covers SPA
-routing on either host.)
+Every push to `main` deploys. Do not add a `public/_redirects` file — SPA
+fallback is `not_found_handling` in `wrangler.jsonc`, and Workers rejects
+the `/* /index.html 200` rule as a redirect loop. (`netlify.toml` is kept
+so Netlify remains a drop-in alternative.)
 
 ## Refreshing the seed
 

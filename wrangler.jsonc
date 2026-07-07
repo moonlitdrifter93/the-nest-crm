@@ -1,0 +1,16 @@
+// Cloudflare Workers config — static assets deploy of the Vite build.
+// SPA fallback is handled here via not_found_handling (do NOT add a
+// public/_redirects file: Workers assets rejects `/* /index.html 200`
+// as an infinite loop).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "the-nest-crm",
+  "compatibility_date": "2026-07-06",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
