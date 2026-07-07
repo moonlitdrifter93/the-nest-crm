@@ -61,14 +61,20 @@ export interface Firm {
   activities?: string;
 }
 
-// Master deal book entry — stored in its own `deals` table whose RLS only
+// Master deal book tile — stored in its own `deals` table whose RLS only
 // answers to the admin, so deal figures never leave the database for anyone
-// else. Not part of the shared firm record.
+// else. Standalone entries: optionally linked to a firm, freely added,
+// edited, deleted and drag-reordered.
 export interface Deal {
-  firm_id: string;
+  id: number | string;
+  name: string;
+  firm_id?: string | null;
+  is_placement?: boolean;
+  plan?: Plan;
   amount?: string;
   update_text?: string;
   update_at?: string;
+  position: number;
 }
 
 export const STATUSES: Status[] = [

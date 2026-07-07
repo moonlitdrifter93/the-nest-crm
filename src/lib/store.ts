@@ -139,22 +139,48 @@ export async function loadSpif(): Promise<SpifEvent[]> {
   return (data ?? []) as SpifEvent[];
 }
 
-export async function logSpif(ev: SpifEvent): Promise<void> {
+export async function logSpif(ev: SpifEvent): Promise<SpifEvent> {
   if (!supabaseEnabled) {
     const all = await loadSpif();
     all.unshift(ev);
     localStorage.setItem(SPIF_LOCAL_KEY, JSON.stringify(all));
+    return ev;
+  }
+  const { data, error } = await client()
+    .from("spif_events")
+    .insert({
+      ts: ev.ts,
+      firm_id: ev.firm_id,
+      firm_name: ev.firm_name,
+      owner: ev.owner ?? null,
+      kind: ev.kind,
+      logged_by: ev.logged_by ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`SPIF log failed: ${error.message}`);
+  return data as SpifEvent;
+}
+
+// Admin-only by database policy (upgrade-003).
+export async function updateSpif(ev: SpifEvent): Promise<void> {
+  if (!supabaseEnabled) {
+    const all = (await loadSpif()).map((e) =>
+      (e.id ?? e.ts) === (ev.id ?? ev.ts) ? ev : e,
+    );
+    localStorage.setItem(SPIF_LOCAL_KEY, JSON.stringify(all));
     return;
   }
-  const { error } = await client().from("spif_events").insert({
-    ts: ev.ts,
-    firm_id: ev.firm_id,
-    firm_name: ev.firm_name,
-    owner: ev.owner ?? null,
-    kind: ev.kind,
-    logged_by: ev.logged_by ?? null,
-  });
-  if (error) throw new Error(`SPIF log failed: ${error.message}`);
+  const { error } = await client()
+    .from("spif_events")
+    .update({
+      ts: ev.ts,
+      firm_name: ev.firm_name,
+      owner: ev.owner ?? null,
+      kind: ev.kind,
+    })
+    .eq("id", ev.id);
+  if (error) throw new Error(`SPIF update failed: ${error.message}`);
 }
 
 export async function deleteSpif(ev: SpifEvent): Promise<void> {
@@ -171,39 +197,84 @@ export async function deleteSpif(ev: SpifEvent): Promise<void> {
 
 import type { Deal } from "../types";
 
-const DEALS_LOCAL_KEY = "nest_crm_deals";
+const DEALS_LOCAL_KEY = "nest_crm_deals_v2";
+
+function localDeals(): Deal[] {
+  try {
+    return JSON.parse(localStorage.getItem(DEALS_LOCAL_KEY) || "[]") as Deal[];
+  } catch {
+    return [];
+  }
+}
+function setLocalDeals(deals: Deal[]) {
+  localStorage.setItem(DEALS_LOCAL_KEY, JSON.stringify(deals));
+}
 
 // The deals table's RLS only answers to the admin's email, so for anyone
 // else this returns empty — the data never reaches their browser.
-export async function loadDeals(): Promise<Record<string, Deal>> {
-  if (!supabaseEnabled) {
-    try {
-      return JSON.parse(localStorage.getItem(DEALS_LOCAL_KEY) || "{}") as Record<string, Deal>;
-    } catch {
-      return {};
-    }
-  }
-  const { data, error } = await client().from("deals").select("*");
-  if (error) return {};
-  const out: Record<string, Deal> = {};
-  for (const d of (data ?? []) as Deal[]) out[d.firm_id] = d;
-  return out;
+export async function loadDeals(): Promise<Deal[]> {
+  if (!supabaseEnabled) return localDeals().sort((a, b) => a.position - b.position);
+  const { data, error } = await client().from("deals").select("*").order("position");
+  if (error) return [];
+  return (data ?? []) as Deal[];
 }
 
-export async function saveDeal(deal: Deal): Promise<void> {
-  if (!supabaseEnabled) {
-    const all = await loadDeals();
-    all[deal.firm_id] = deal;
-    localStorage.setItem(DEALS_LOCAL_KEY, JSON.stringify(all));
-    return;
-  }
-  const { error } = await client().from("deals").upsert({
-    firm_id: deal.firm_id,
+function dealRow(deal: Deal) {
+  return {
+    name: deal.name,
+    firm_id: deal.firm_id ?? null,
+    is_placement: deal.is_placement ?? false,
+    plan: deal.plan ?? "",
     amount: deal.amount ?? null,
     update_text: deal.update_text ?? null,
     update_at: deal.update_at ?? null,
-  });
-  if (error) throw new Error(`Deal save failed: ${error.message}`);
+    position: deal.position,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// Returns the deal with its database-assigned id.
+export async function createDeal(deal: Deal): Promise<Deal> {
+  if (!supabaseEnabled) {
+    const withId = { ...deal, id: `local-${Date.now()}` };
+    setLocalDeals([...localDeals(), withId]);
+    return withId;
+  }
+  const { data, error } = await client().from("deals").insert(dealRow(deal)).select().single();
+  if (error) throw new Error(`Deal create failed: ${error.message}`);
+  return data as Deal;
+}
+
+export async function updateDeal(deal: Deal): Promise<void> {
+  if (!supabaseEnabled) {
+    setLocalDeals(localDeals().map((d) => (d.id === deal.id ? deal : d)));
+    return;
+  }
+  const { error } = await client().from("deals").update(dealRow(deal)).eq("id", deal.id);
+  if (error) throw new Error(`Deal update failed: ${error.message}`);
+}
+
+export async function deleteDeal(id: Deal["id"]): Promise<void> {
+  if (!supabaseEnabled) {
+    setLocalDeals(localDeals().filter((d) => d.id !== id));
+    return;
+  }
+  const { error } = await client().from("deals").delete().eq("id", id);
+  if (error) throw new Error(`Deal delete failed: ${error.message}`);
+}
+
+// Persist a drag-reorder: positions are the array order.
+export async function reorderDeals(deals: Deal[]): Promise<void> {
+  const repositioned = deals.map((d, i) => ({ ...d, position: i }));
+  if (!supabaseEnabled) {
+    setLocalDeals(repositioned);
+    return;
+  }
+  await Promise.all(
+    repositioned.map((d) =>
+      client().from("deals").update({ position: d.position }).eq("id", d.id),
+    ),
+  );
 }
 
 /* ---------- Platform live funds (synced from The Nest production) ---------- */

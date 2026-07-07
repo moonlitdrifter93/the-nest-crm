@@ -10,16 +10,22 @@ import { daysUntil, todayISO } from "./lib/format";
 import {
   client,
   configError,
+  createDeal,
+  deleteDeal,
   deleteFirm,
   deleteSpif,
   loadDeals,
   loadFirms,
+  loadPlatformFunds,
   loadSpif,
   logSpif,
   newFirmId,
-  saveDeal,
+  reorderDeals,
   saveFirm,
   supabaseEnabled,
+  updateDeal,
+  updateSpif,
+  type PlatformFund,
   type SpifEvent,
 } from "./lib/store";
 import { checkPassword, TEAM, userByEmail, userById, type TeamUser } from "./lib/users";
@@ -218,19 +224,56 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spif, setSpif] = useState<SpifEvent[]>([]);
-  const [deals, setDeals] = useState<Record<string, Deal>>({});
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [platform, setPlatform] = useState<PlatformFund[]>([]);
 
   useEffect(() => {
     loadFirms()
       .then(setFirms)
       .catch((e) => setLoadErr(e instanceof Error ? e.message : "Load failed"));
     loadSpif().then(setSpif).catch(() => {});
-    if (user.seesAllFunds) loadDeals().then(setDeals).catch(() => {});
+    if (user.seesAllFunds) {
+      loadDeals().then(setDeals).catch(() => {});
+      loadPlatformFunds().then(setPlatform).catch(() => {});
+    }
   }, [user]);
 
-  function handleSaveDeal(deal: Deal) {
-    setDeals((d) => ({ ...d, [deal.firm_id]: deal }));
-    saveDeal(deal).catch(() => {});
+  async function handleDealCreate(deal: Deal) {
+    try {
+      const saved = await createDeal(deal);
+      setDeals((d) => [...d, saved]);
+    } catch (e) {
+      setLoadErr(e instanceof Error ? e.message : "Deal save failed");
+    }
+  }
+  function handleDealUpdate(deal: Deal) {
+    setDeals((d) => d.map((x) => (x.id === deal.id ? deal : x)));
+    updateDeal(deal).catch(() => {});
+  }
+  function handleDealDelete(id: Deal["id"]) {
+    setDeals((d) => d.filter((x) => x.id !== id));
+    deleteDeal(id).catch(() => {});
+  }
+  function handleDealReorder(next: Deal[]) {
+    setDeals(next.map((d, i) => ({ ...d, position: i })));
+    reorderDeals(next).catch(() => {});
+  }
+
+  async function handleSpifAdd(ev: SpifEvent) {
+    try {
+      const saved = await logSpif(ev);
+      setSpif((s) => [saved, ...s].sort((a, b) => b.ts.localeCompare(a.ts)));
+    } catch {
+      /* ignore */
+    }
+  }
+  function handleSpifUpdate(ev: SpifEvent) {
+    setSpif((s) =>
+      s
+        .map((e) => ((e.id ?? e.ts) === (ev.id ?? ev.ts) ? ev : e))
+        .sort((a, b) => b.ts.localeCompare(a.ts)),
+    );
+    updateSpif(ev).catch(() => {});
   }
 
   const open = useMemo(
@@ -284,7 +327,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         logged_by: user.name,
       };
       logSpif(ev)
-        .then(() => setSpif((s) => [ev, ...s]))
+        .then((saved) => setSpif((s) => [saved, ...s]))
         .catch(() => {});
     }
   }
@@ -386,15 +429,23 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         <LiveFundsView firms={firms} user={user} onOpen={(f) => setOpenId(f.id)} />
       )}
       {firms && tab === "spif" && (
-        <SpifView events={spif} user={user} onDelete={handleSpifDelete} />
+        <SpifView
+          events={spif}
+          user={user}
+          onAdd={handleSpifAdd}
+          onUpdate={handleSpifUpdate}
+          onDelete={handleSpifDelete}
+        />
       )}
       {firms && tab === "master" && user.seesAllFunds && (
         <MasterView
           firms={firms}
-          user={user}
+          platform={platform}
           deals={deals}
-          onSaveDeal={handleSaveDeal}
-          onOpen={(f) => setOpenId(f.id)}
+          onCreate={handleDealCreate}
+          onUpdate={handleDealUpdate}
+          onDelete={handleDealDelete}
+          onReorder={handleDealReorder}
         />
       )}
 
