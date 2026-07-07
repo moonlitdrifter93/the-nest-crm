@@ -4,7 +4,15 @@ import { LiveFundsView } from "./components/LiveFundsView";
 import { PipelineView } from "./components/PipelineView";
 import { PriorityView } from "./components/PriorityView";
 import { daysUntil, todayISO } from "./lib/format";
-import { client, deleteFirm, loadFirms, newFirmId, saveFirm, supabaseEnabled } from "./lib/store";
+import {
+  client,
+  configError,
+  deleteFirm,
+  loadFirms,
+  newFirmId,
+  saveFirm,
+  supabaseEnabled,
+} from "./lib/store";
 import { checkPassword, TEAM, userByEmail, userById, type TeamUser } from "./lib/users";
 import type { Firm } from "./types";
 
@@ -150,6 +158,11 @@ function LocalGate({ onPass }: { onPass: (user: TeamUser) => void }) {
     <div className="gate">
       <h1>The Nest</h1>
       <div className="sub">Fund Manager CRM · local mode</div>
+      {configError && (
+        <div className="notice" style={{ maxWidth: 420, borderColor: "#5a3830", color: "var(--red)" }}>
+          {configError}
+        </div>
+      )}
       <form
         style={{ flexDirection: "column", alignItems: "stretch" }}
         onSubmit={(e) => {

@@ -18,8 +18,23 @@ import type { Firm } from "../types";
 const SEED = seedRaw as unknown as Firm[];
 const LOCAL_KEY = "nest_crm_v2_local";
 
-const SB_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SB_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+// Sanitise env values: strip whitespace/newlines that ride along in copy/paste.
+const RAW_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
+const RAW_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.replace(/\s+/g, "");
+
+// Keys are base64url segments (JWT) or sb_publishable_* — anything else means a
+// corrupted paste (smart quote, ellipsis, invisible character). A bad key would
+// otherwise crash every fetch with an obscure "non ISO-8859-1 code point" error.
+const KEY_OK = !!RAW_KEY && /^[A-Za-z0-9_.-]+$/.test(RAW_KEY);
+
+// Surfaced on the sign-in screen when env vars are present but unusable.
+export const configError =
+  RAW_KEY && !KEY_OK
+    ? "The Supabase key set at build time contains an invalid character (copy/paste artifact). Re-copy the anon key from Supabase → Project Settings → API using the copy button, update the VITE_SUPABASE_ANON_KEY build variable, and redeploy."
+    : "";
+
+const SB_URL = RAW_URL;
+const SB_KEY = KEY_OK ? RAW_KEY : undefined;
 
 export const supabaseEnabled = Boolean(SB_URL && SB_KEY);
 
