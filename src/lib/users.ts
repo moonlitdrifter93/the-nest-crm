@@ -3,8 +3,8 @@ import type { Firm } from "../types";
 /*
  * Team sign-in and fund visibility.
  *
- * Matthew (Managing Principal) sees every live fund. Raph and Jack work as a
- * pod: each sees the funds allocated to either of them. Tim sees his own.
+ * Matthew (Managing Principal) sees every live fund. Everyone else sees only
+ * the funds allocated to them.
  *
  * With Supabase configured, sign-in is a real Supabase Auth account (email +
  * password, session managed server-side) and the database only answers to
@@ -35,14 +35,14 @@ export const TEAM: TeamUser[] = [
     name: "Raphael Pitts",
     email: "raph.pitts@thenest.com.au",
     seesAllFunds: false,
-    fundOwners: ["Raphael Pitts", "Jack Woods"],
+    fundOwners: ["Raphael Pitts"],
   },
   {
     id: "jack",
     name: "Jack Woods",
     email: "jack.woods@thenest.com.au",
     seesAllFunds: false,
-    fundOwners: ["Jack Woods", "Raphael Pitts"],
+    fundOwners: ["Jack Woods"],
   },
   {
     id: "timothy",

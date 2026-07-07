@@ -21,15 +21,21 @@ engine that surfaces the firms worth acting on next.
     production database (see *Platform sync* below), with the platform's own
     Enterprise/PPR flag and live-product counts.
   - *CRM statuses*: Live and Onboarded firms as tracked by the team.
-  Pod visibility applies (Matthew sees all; Raph/Jack see their pod;
-  Tim his own — rules in `src/lib/users.ts`).
+  Visibility: Matthew sees every fund; everyone else sees only funds
+  allocated to them (rules in `src/lib/users.ts`).
 - **SPIF** — how many funds are being closed. A close is logged automatically
   whenever a firm's stage moves to **Onboarded** or **Live**: weekly/monthly
-  tiles, an owner leaderboard, and the full log.
+  tiles, an owner leaderboard, and the full log. Entries are immutable;
+  only the admin can remove a mis-log (enforced by database policy).
 - **Master** *(Matthew only)* — the private deal book: every firm allocated
   to Matthew or tagged Placement, reduced to Name / Type (Placement,
-  PPR/Enterprise) / Amount / latest Update. Deal amount and update are edited
-  in the firm drawer's *Deal* section.
+  PPR/Enterprise) / Amount / latest Update, edited inline. Deal figures live
+  in their own `deals` table whose row-level security answers **only to the
+  admin's account** — other logins get zero rows and refused writes, so the
+  numbers never leave the database for them.
+- **FM onboarding ↗** (header link) — jumps to the fund manager onboarding
+  page on The Nest (`VITE_ONBOARDING_URL`, defaults to
+  thenest.com.au/fund-manager/onboarding).
 - **📞 Call sheet** (button, top right) — the daily list: top 30–50
   most-likely-to-sign firms with the person to call, their number and email
   highlighted as click-to-call / click-to-email, the intel notes, and the

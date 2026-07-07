@@ -59,10 +59,16 @@ export interface Firm {
   is_family_office?: boolean;
   tier?: string;
   activities?: string;
-  // Master view (deal book) fields
-  deal_amount?: string;
-  deal_update?: string;
-  deal_update_at?: string;
+}
+
+// Master deal book entry — stored in its own `deals` table whose RLS only
+// answers to the admin, so deal figures never leave the database for anyone
+// else. Not part of the shared firm record.
+export interface Deal {
+  firm_id: string;
+  amount?: string;
+  update_text?: string;
+  update_at?: string;
 }
 
 export const STATUSES: Status[] = [

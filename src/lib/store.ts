@@ -167,6 +167,45 @@ export async function deleteSpif(ev: SpifEvent): Promise<void> {
   if (error) throw new Error(`SPIF delete failed: ${error.message}`);
 }
 
+/* ---------- Master deal book (admin-only, RLS-locked table) ---------- */
+
+import type { Deal } from "../types";
+
+const DEALS_LOCAL_KEY = "nest_crm_deals";
+
+// The deals table's RLS only answers to the admin's email, so for anyone
+// else this returns empty — the data never reaches their browser.
+export async function loadDeals(): Promise<Record<string, Deal>> {
+  if (!supabaseEnabled) {
+    try {
+      return JSON.parse(localStorage.getItem(DEALS_LOCAL_KEY) || "{}") as Record<string, Deal>;
+    } catch {
+      return {};
+    }
+  }
+  const { data, error } = await client().from("deals").select("*");
+  if (error) return {};
+  const out: Record<string, Deal> = {};
+  for (const d of (data ?? []) as Deal[]) out[d.firm_id] = d;
+  return out;
+}
+
+export async function saveDeal(deal: Deal): Promise<void> {
+  if (!supabaseEnabled) {
+    const all = await loadDeals();
+    all[deal.firm_id] = deal;
+    localStorage.setItem(DEALS_LOCAL_KEY, JSON.stringify(all));
+    return;
+  }
+  const { error } = await client().from("deals").upsert({
+    firm_id: deal.firm_id,
+    amount: deal.amount ?? null,
+    update_text: deal.update_text ?? null,
+    update_at: deal.update_at ?? null,
+  });
+  if (error) throw new Error(`Deal save failed: ${error.message}`);
+}
+
 /* ---------- Platform live funds (synced from The Nest production) ---------- */
 
 export interface PlatformFund {

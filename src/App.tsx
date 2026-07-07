@@ -12,16 +12,22 @@ import {
   configError,
   deleteFirm,
   deleteSpif,
+  loadDeals,
   loadFirms,
   loadSpif,
   logSpif,
   newFirmId,
+  saveDeal,
   saveFirm,
   supabaseEnabled,
   type SpifEvent,
 } from "./lib/store";
 import { checkPassword, TEAM, userByEmail, userById, type TeamUser } from "./lib/users";
-import type { Firm } from "./types";
+import type { Deal, Firm } from "./types";
+
+const ONBOARDING_URL =
+  (import.meta.env.VITE_ONBOARDING_URL as string | undefined) ||
+  "https://thenest.com.au/fund-manager/onboarding";
 
 const AUTH_KEY = "nest_crm_user";
 
@@ -212,13 +218,20 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [spif, setSpif] = useState<SpifEvent[]>([]);
+  const [deals, setDeals] = useState<Record<string, Deal>>({});
 
   useEffect(() => {
     loadFirms()
       .then(setFirms)
       .catch((e) => setLoadErr(e instanceof Error ? e.message : "Load failed"));
     loadSpif().then(setSpif).catch(() => {});
-  }, []);
+    if (user.seesAllFunds) loadDeals().then(setDeals).catch(() => {});
+  }, [user]);
+
+  function handleSaveDeal(deal: Deal) {
+    setDeals((d) => ({ ...d, [deal.firm_id]: deal }));
+    saveDeal(deal).catch(() => {});
+  }
 
   const open = useMemo(
     () => (openId ? (firms ?? []).find((f) => f.id === openId) ?? null : null),
@@ -333,6 +346,15 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
           </button>
         )}
         <div style={{ flex: 1 }} />
+        <a
+          className="btn"
+          href={ONBOARDING_URL}
+          target="_blank"
+          rel="noreferrer"
+          style={{ textDecoration: "none" }}
+        >
+          FM onboarding ↗
+        </a>
         <button className="btn primary" onClick={() => setSheetOpen(true)}>
           📞 Call sheet
         </button>
@@ -367,7 +389,13 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         <SpifView events={spif} user={user} onDelete={handleSpifDelete} />
       )}
       {firms && tab === "master" && user.seesAllFunds && (
-        <MasterView firms={firms} user={user} onOpen={(f) => setOpenId(f.id)} />
+        <MasterView
+          firms={firms}
+          user={user}
+          deals={deals}
+          onSaveDeal={handleSaveDeal}
+          onOpen={(f) => setOpenId(f.id)}
+        />
       )}
 
       {sheetOpen && firms && (
