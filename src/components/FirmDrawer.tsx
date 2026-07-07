@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
+import { touchFirm } from "../lib/format";
 import { ASSET_CLASSES, OWNERS, STATUSES, type Firm, type Plan, type Status } from "../types";
 
 export function FirmDrawer({
   firm,
+  userName,
   onSave,
   onDelete,
   onClose,
 }: {
   firm: Firm;
+  userName: string;
   onSave: (firm: Firm) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onClose: () => void;
@@ -172,6 +175,30 @@ export function FirmDrawer({
         )}
 
         <div className="sect">Pipeline</div>
+        <div className="tickrow" style={{ marginBottom: 12 }}>
+          {(["call", "email", "meeting"] as const).map((kind) => (
+            <button
+              key={kind}
+              className="btn"
+              disabled={busy}
+              title={`Stamps last contact today and adds a note line, then saves`}
+              onClick={async () => {
+                const touched = touchFirm(draft, kind, userName);
+                setDraft(touched);
+                setBusy(true);
+                try {
+                  await onSave(touched);
+                } catch (e) {
+                  setErr(e instanceof Error ? e.message : "Save failed.");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {kind === "call" ? "☎ Log call" : kind === "email" ? "✉ Log email" : "👥 Log meeting"}
+            </button>
+          ))}
+        </div>
         <div className="fgrid">
           <div className="f">
             <label>Last contact</label>

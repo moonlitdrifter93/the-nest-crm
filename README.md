@@ -36,6 +36,37 @@ engine that surfaces the firms worth acting on next.
 - **FM onboarding ↗** (header link) — jumps to the fund manager onboarding
   page on The Nest (`VITE_ONBOARDING_URL`, defaults to
   thenest.com.au/fund-manager/onboarding).
+- **Touchpoint logging** — ☎/✉/👥 buttons in the firm drawer and ✓ Called /
+  ✓ Emailed on the call sheet stamp last-contact today and prepend a
+  timestamped line to the notes, then save.
+- **Export .xlsx** (Universe toolbar) — formatted Excel workbook (Firms +
+  SPIF sheets), generated in the browser.
+- **Dupes review** (Universe toolbar, appears when candidates exist) —
+  near-identical firm names with one-click merge (keeps the chosen firm,
+  fills gaps from the other, unions contacts/classes, appends notes) or
+  permanent dismissal.
+- **PWA** — installable to a phone home screen (manifest + icons); the call
+  sheet's tap-to-call is the mobile use case.
+
+## Daily digest & automations (Cloudflare cron)
+
+The worker (`src/worker/index.ts`) runs at **22:30 UTC = 8:30am AEST** daily:
+
+1. **Platform sync** into `platform_funds` (when platform secrets are set).
+2. **Morning emails** via Resend — Matthew: team top 15 + his top 10 +
+   pipeline stats; Raph: his top 15 + 5 dripped data-hygiene fixes/day.
+3. **Monday (AEST)**: full firms backup attached to Matthew's email as JSON.
+
+Secrets (worker → Settings → Variables and secrets):
+
+| Secret | Required | Purpose |
+| --- | --- | --- |
+| `CRM_SERVICE_ROLE_KEY` | yes | read firms / write platform_funds |
+| `RESEND_API_KEY` | yes | send the emails |
+| `PLATFORM_SUPABASE_URL` | optional | enables platform sync |
+| `PLATFORM_SERVICE_ROLE_KEY` | optional | enables platform sync |
+| `DIGEST_TEST_TOKEN` | optional | GET `/__digest?token=…` runs the digest on demand |
+| `MAIL_FROM` | optional | default `The Nest CRM <onboarding@auth.thenest.com.au>` |
 - **📞 Call sheet** (button, top right) — the daily list: top 30–50
   most-likely-to-sign firms with the person to call, their number and email
   highlighted as click-to-call / click-to-email, the intel notes, and the

@@ -87,12 +87,7 @@ export const STATUSES: Status[] = [
   "Dead",
 ];
 
-export const OWNERS = [
-  "Raphael Pitts",
-  "Jack Woods",
-  "Matthew Downing",
-  "Timothy Easterbrook",
-];
+export const OWNERS = ["Matthew Downing", "Raphael Pitts"];
 
 export const ASSET_CLASSES = [
   "Australian Shares",

@@ -6,7 +6,8 @@ import { MasterView } from "./components/MasterView";
 import { PipelineView } from "./components/PipelineView";
 import { SpifView } from "./components/SpifView";
 import { UniverseView } from "./components/UniverseView";
-import { daysUntil, todayISO } from "./lib/format";
+import { exportExcel } from "./lib/export";
+import { daysUntil, todayISO, touchFirm } from "./lib/format";
 import {
   client,
   configError,
@@ -420,7 +421,16 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
       {!firms && !loadErr && <div className="empty">Loading firms…</div>}
 
       {firms && tab === "universe" && (
-        <UniverseView firms={firms} onOpen={(f) => setOpenId(f.id)} onAdd={handleAdd} />
+        <UniverseView
+          firms={firms}
+          onOpen={(f) => setOpenId(f.id)}
+          onAdd={handleAdd}
+          onExport={() => firms && exportExcel(firms, spif)}
+          onMerge={async (merged, removeId) => {
+            await handleSave(merged);
+            await handleDelete(removeId);
+          }}
+        />
       )}
       {firms && tab === "pipeline" && (
         <PipelineView firms={firms} onOpen={(f) => setOpenId(f.id)} />
@@ -457,12 +467,14 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
             setOpenId(f.id);
           }}
           onClose={() => setSheetOpen(false)}
+          onLog={(f, kind) => void handleSave(touchFirm(f, kind, user.name))}
         />
       )}
 
       {open && (
         <FirmDrawer
           firm={open}
+          userName={user.name}
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={() => setOpenId(null)}

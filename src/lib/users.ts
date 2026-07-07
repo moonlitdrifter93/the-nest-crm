@@ -37,34 +37,16 @@ export const TEAM: TeamUser[] = [
     seesAllFunds: false,
     fundOwners: ["Raphael Pitts"],
   },
-  {
-    id: "jack",
-    name: "Jack Woods",
-    email: "jack.woods@thenest.com.au",
-    seesAllFunds: false,
-    fundOwners: ["Jack Woods"],
-  },
-  {
-    id: "timothy",
-    name: "Timothy Easterbrook",
-    email: "timothy.easterbrook@thenest.com.au",
-    seesAllFunds: false,
-    fundOwners: ["Timothy Easterbrook"],
-  },
 ];
 
 const DEFAULT_PW: Record<string, string> = {
   matthew: "downing2026",
   raphael: "pitts2026",
-  jack: "woods2026",
-  timothy: "easterbrook2026",
 };
 
 const ENV_PW: Record<string, string | undefined> = {
   matthew: import.meta.env.VITE_PW_MATTHEW,
   raphael: import.meta.env.VITE_PW_RAPHAEL,
-  jack: import.meta.env.VITE_PW_JACK,
-  timothy: import.meta.env.VITE_PW_TIMOTHY,
 };
 
 export function checkPassword(user: TeamUser, pw: string): boolean {

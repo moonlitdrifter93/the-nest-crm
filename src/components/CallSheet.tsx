@@ -13,10 +13,12 @@ export function CallSheet({
   firms,
   onOpen,
   onClose,
+  onLog,
 }: {
   firms: Firm[];
   onOpen: (firm: Firm) => void;
   onClose: () => void;
+  onLog: (firm: Firm, kind: "call" | "email") => void;
 }) {
   const [count, setCount] = useState(40);
   const [ownerFilter, setOwnerFilter] = useState("");
@@ -94,6 +96,28 @@ export function CallSheet({
                   ) : (
                     <span className="mail missing">no email</span>
                   )}
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button
+                    className="btn"
+                    style={{ padding: "4px 12px", fontSize: 12 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLog(f, "call");
+                    }}
+                  >
+                    ✓ Called
+                  </button>
+                  <button
+                    className="btn"
+                    style={{ padding: "4px 12px", fontSize: 12 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLog(f, "email");
+                    }}
+                  >
+                    ✓ Emailed
+                  </button>
                 </div>
                 {f.action?.trim() && <div className="act">→ {f.action}</div>}
                 {f.note?.trim() && <div className="notes">{f.note}</div>}

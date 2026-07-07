@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { findDupes, mergeFirms, pairKey, type DupePair } from "../lib/dupes";
 import { daysUntil, fmtDate, fmtFum, fmtRelative, parseFumMillions } from "../lib/format";
 import { closeQueue } from "../lib/score";
 import { ASSET_CLASSES, OWNERS, STATUSES, type Firm, type Status } from "../types";
@@ -14,10 +15,14 @@ export function UniverseView({
   firms,
   onOpen,
   onAdd,
+  onExport,
+  onMerge,
 }: {
   firms: Firm[];
   onOpen: (firm: Firm) => void;
   onAdd: () => void;
+  onExport: () => void;
+  onMerge: (merged: Firm, removeId: string) => void;
 }) {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | null>(null);
@@ -25,6 +30,23 @@ export function UniverseView({
   const [acFilter, setAcFilter] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
+  const [dupesOpen, setDupesOpen] = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("nest_dupes_dismissed") || "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+
+  const dupes = useMemo(() => findDupes(firms, dismissed), [firms, dismissed]);
+
+  function dismissPair(p: DupePair) {
+    const next = new Set(dismissed);
+    next.add(pairKey(p.a, p.b));
+    setDismissed(next);
+    localStorage.setItem("nest_dupes_dismissed", JSON.stringify([...next]));
+  }
 
   const scores = useMemo(() => {
     const m = new Map<string, number>();
@@ -118,10 +140,68 @@ export function UniverseView({
           ))}
         </select>
         <div style={{ flex: 1 }} />
+        {dupes.length > 0 && (
+          <button className="btn" onClick={() => setDupesOpen(true)}>
+            Dupes ({dupes.length})
+          </button>
+        )}
+        <button className="btn" onClick={onExport}>
+          Export .xlsx
+        </button>
         <button className="btn primary" onClick={onAdd}>
           + Add firm
         </button>
       </div>
+
+      {dupesOpen && (
+        <>
+          <div className="scrim" onClick={() => setDupesOpen(false)} />
+          <div className="drawer sheet">
+            <button className="close" onClick={() => setDupesOpen(false)} aria-label="Close">
+              ×
+            </button>
+            <h2>Possible duplicates</h2>
+            <div className="sub" style={{ marginBottom: 14 }}>
+              Merging keeps the first firm's details, fills its gaps from the second, unions
+              contacts and asset classes, and appends the notes.
+            </div>
+            {dupes.length === 0 && <div className="empty">All clear.</div>}
+            {dupes.map((p) => (
+              <div key={pairKey(p.a, p.b)} className="callrow" style={{ cursor: "default" }}>
+                <div className="rank">≈</div>
+                <div>
+                  <div className="name">
+                    {p.a.name} <StatusBadge status={p.a.status} />
+                    <span className="sub">vs</span>
+                    {p.b.name} <StatusBadge status={p.b.status} />
+                  </div>
+                  <div className="sub" style={{ marginTop: 6 }}>
+                    {p.reason} · owners: {p.a.owner || "—"} / {p.b.owner || "—"}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      className="btn"
+                      onClick={() => onMerge(mergeFirms(p.a, p.b), p.b.id)}
+                    >
+                      Merge → keep “{p.a.name}”
+                    </button>
+                    <button
+                      className="btn"
+                      onClick={() => onMerge(mergeFirms(p.b, p.a), p.a.id)}
+                    >
+                      Merge → keep “{p.b.name}”
+                    </button>
+                    <button className="btn" onClick={() => dismissPair(p)}>
+                      Not duplicates
+                    </button>
+                  </div>
+                </div>
+                <div />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="fchips">
         <button className={statusFilter === null ? "on" : ""} onClick={() => setStatusFilter(null)}>

@@ -39,6 +39,22 @@ export function fmtDate(iso?: string): string {
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
 }
 
+// One-tap touchpoint: stamps last_contact today and prepends a timestamped
+// line to the intel notes.
+export function touchFirm<T extends { last_contact?: string; note?: string }>(
+  firm: T,
+  kind: "call" | "email" | "meeting",
+  who: string,
+): T {
+  const today = todayISO();
+  const line = `${fmtDate(today)} — ${kind} — ${who.split(" ")[0]}`;
+  return {
+    ...firm,
+    last_contact: today,
+    note: firm.note?.trim() ? `${line}\n${firm.note}` : line,
+  };
+}
+
 export function fmtRelative(iso?: string): string {
   const days = daysUntil(iso);
   if (days === null) return "—";
