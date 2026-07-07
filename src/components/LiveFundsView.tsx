@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { daysUntil, fmtDate, fmtFum, fmtRelative, parseFumMillions } from "../lib/format";
+import { platformCoverage } from "../lib/score";
+import { loadPlatformFunds, supabaseEnabled, type PlatformFund } from "../lib/store";
 import { visibleFunds, type TeamUser } from "../lib/users";
-import type { Firm } from "../types";
+import { ASSET_CLASSES, type Firm } from "../types";
 
 export function LiveFundsView({
   firms,
@@ -12,30 +14,141 @@ export function LiveFundsView({
   user: TeamUser;
   onOpen: (firm: Firm) => void;
 }) {
+  const [platform, setPlatform] = useState<PlatformFund[] | null>(null);
+
+  useEffect(() => {
+    loadPlatformFunds().then(setPlatform);
+  }, []);
+
   const funds = useMemo(() => visibleFunds(user, firms), [user, firms]);
   const live = funds.filter((f) => f.status === "Live");
   const onboarded = funds.filter((f) => f.status === "Onboarded");
+
+  // Platform rows scoped the same way as CRM live funds: pod members only see
+  // firms allocated to their pod (matched to CRM records by name).
+  const firmByName = useMemo(() => {
+    const m = new Map<string, Firm>();
+    for (const f of firms) m.set(f.name.toLowerCase().trim(), f);
+    return m;
+  }, [firms]);
+
+  const visiblePlatform = useMemo(() => {
+    if (!platform) return [];
+    if (user.seesAllFunds) return platform;
+    const visible = new Set(funds.map((f) => f.name.toLowerCase().trim()));
+    return platform.filter((p) => visible.has(p.firm_name.toLowerCase().trim()));
+  }, [platform, user, funds]);
 
   const scope = user.seesAllFunds
     ? "all funds · full view"
     : `funds allocated to ${listNames(user.fundOwners ?? [user.name])}`;
 
+  const coverage = useMemo(() => platformCoverage(firms), [firms]);
+  const gaps = useMemo(
+    () =>
+      [...ASSET_CLASSES].sort(
+        (a, b) => (coverage.get(a) ?? 0) - (coverage.get(b) ?? 0) || a.localeCompare(b),
+      ),
+    [coverage],
+  );
+
+  const syncedAt = visiblePlatform[0]?.synced_at;
+
   return (
-    <div>
-      <FundTable
-        title="Live on The Nest"
-        hint={`${live.length} funds · ${scope}`}
-        funds={live}
-        showOwner
-        onOpen={onOpen}
-      />
-      <FundTable
-        title="Onboarded — coming online"
-        hint={`${onboarded.length} firms signed, first product pending`}
-        funds={onboarded}
-        showOwner
-        onOpen={onOpen}
-      />
+    <div className="prio-grid">
+      <div>
+        <div className="section-h">
+          On The Nest — platform data
+          <span className="hint">
+            {visiblePlatform.length > 0
+              ? `${visiblePlatform.length} firms with approved products · synced ${fmtDate(syncedAt?.slice(0, 10))} · ${scope}`
+              : "synced from the production database"}
+          </span>
+        </div>
+        {visiblePlatform.length === 0 ? (
+          <div className="notice">
+            {supabaseEnabled
+              ? "No platform data synced yet. Run `node scripts/sync-platform.mjs` (see README) to mirror the live fund list from The Nest's production database into the CRM."
+              : "Platform sync requires the CRM's Supabase to be configured."}
+          </div>
+        ) : (
+          <div className="tbl-wrap" style={{ marginBottom: 30 }}>
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Firm</th>
+                  <th>Plan</th>
+                  <th>Live products</th>
+                  <th>Approved</th>
+                  <th>Asset classes</th>
+                  <th>City</th>
+                  <th>FUM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visiblePlatform.map((p) => {
+                  const crm = firmByName.get(p.firm_name.toLowerCase().trim());
+                  return (
+                    <tr
+                      key={p.firm_id}
+                      className={crm ? "row" : ""}
+                      onClick={crm ? () => onOpen(crm) : undefined}
+                    >
+                      <td>
+                        {p.firm_name}
+                        {!crm && <div className="sub">not in CRM — add it</div>}
+                      </td>
+                      <td>
+                        <span className={`chip plan-${p.is_enterprise ? "enterprise" : "ppr"}`}>
+                          {p.is_enterprise ? "Enterprise" : "PPR"}
+                        </span>
+                      </td>
+                      <td className="mono">{p.live_products}</td>
+                      <td className="mono">{p.approved_products}</td>
+                      <td>
+                        <span className="sub">{p.asset_classes || "—"}</span>
+                      </td>
+                      <td>{p.head_office_city || <span className="sub">—</span>}</td>
+                      <td className="mono">
+                        {p.fum != null ? fmtFum(`$${Math.round(p.fum / 1_000_000)}M`) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <FundTable
+          title="Live (CRM status)"
+          hint={`${live.length} funds · ${scope}`}
+          funds={live}
+          onOpen={onOpen}
+        />
+        <FundTable
+          title="Onboarded — coming online"
+          hint={`${onboarded.length} firms signed, first product pending`}
+          funds={onboarded}
+          onOpen={onOpen}
+        />
+      </div>
+
+      <div>
+        <div className="panel">
+          <h3>Platform coverage</h3>
+          <div className="sub">live funds per asset class (CRM statuses) — gaps first</div>
+          {gaps.map((ac) => {
+            const cov = coverage.get(ac) ?? 0;
+            return (
+              <div key={ac} className="gaprow" style={{ cursor: "default" }}>
+                <span className="ac">{ac}</span>
+                <span className={`cov${cov === 0 ? " zero" : ""}`}>{cov} live</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -50,13 +163,11 @@ function FundTable({
   title,
   hint,
   funds,
-  showOwner,
   onOpen,
 }: {
   title: string;
   hint: string;
   funds: Firm[];
-  showOwner: boolean;
   onOpen: (firm: Firm) => void;
 }) {
   const sorted = useMemo(
@@ -83,7 +194,8 @@ function FundTable({
             <thead>
               <tr>
                 <th>Fund</th>
-                {showOwner && <th>Owner</th>}
+                <th>Plan</th>
+                <th>Owner</th>
                 <th>FUM</th>
                 <th>Asset classes</th>
                 <th>Contact</th>
@@ -97,7 +209,14 @@ function FundTable({
                 return (
                   <tr key={f.id} className="row" onClick={() => onOpen(f)}>
                     <td>{f.name}</td>
-                    {showOwner && <td>{f.owner || <span className="sub">—</span>}</td>}
+                    <td>
+                      {f.plan ? (
+                        <span className={`chip plan-${f.plan.toLowerCase()}`}>{f.plan}</span>
+                      ) : (
+                        <span className="sub">—</span>
+                      )}
+                    </td>
+                    <td>{f.owner || <span className="sub">—</span>}</td>
                     <td className="mono">{fmtFum(f.fum)}</td>
                     <td>
                       <span className="sub">{(f.asset_classes ?? []).join(", ") || "—"}</span>

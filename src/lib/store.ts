@@ -109,6 +109,90 @@ export async function deleteFirm(id: string): Promise<void> {
   if (error) throw new Error(`Delete failed: ${error.message}`);
 }
 
+/* ---------- SPIF: closes tracker ---------- */
+
+export interface SpifEvent {
+  id?: number;
+  ts: string;
+  firm_id: string;
+  firm_name: string;
+  owner?: string;
+  kind: "Onboarded" | "Live";
+  logged_by?: string;
+}
+
+const SPIF_LOCAL_KEY = "nest_crm_spif";
+
+export async function loadSpif(): Promise<SpifEvent[]> {
+  if (!supabaseEnabled) {
+    try {
+      return JSON.parse(localStorage.getItem(SPIF_LOCAL_KEY) || "[]") as SpifEvent[];
+    } catch {
+      return [];
+    }
+  }
+  const { data, error } = await client()
+    .from("spif_events")
+    .select("*")
+    .order("ts", { ascending: false });
+  if (error) throw new Error(`SPIF load failed: ${error.message}`);
+  return (data ?? []) as SpifEvent[];
+}
+
+export async function logSpif(ev: SpifEvent): Promise<void> {
+  if (!supabaseEnabled) {
+    const all = await loadSpif();
+    all.unshift(ev);
+    localStorage.setItem(SPIF_LOCAL_KEY, JSON.stringify(all));
+    return;
+  }
+  const { error } = await client().from("spif_events").insert({
+    ts: ev.ts,
+    firm_id: ev.firm_id,
+    firm_name: ev.firm_name,
+    owner: ev.owner ?? null,
+    kind: ev.kind,
+    logged_by: ev.logged_by ?? null,
+  });
+  if (error) throw new Error(`SPIF log failed: ${error.message}`);
+}
+
+export async function deleteSpif(ev: SpifEvent): Promise<void> {
+  if (!supabaseEnabled) {
+    const all = (await loadSpif()).filter((e) => e.ts !== ev.ts || e.firm_id !== ev.firm_id);
+    localStorage.setItem(SPIF_LOCAL_KEY, JSON.stringify(all));
+    return;
+  }
+  const { error } = await client().from("spif_events").delete().eq("id", ev.id);
+  if (error) throw new Error(`SPIF delete failed: ${error.message}`);
+}
+
+/* ---------- Platform live funds (synced from The Nest production) ---------- */
+
+export interface PlatformFund {
+  firm_id: number;
+  firm_name: string;
+  is_enterprise: boolean;
+  head_office_city?: string | null;
+  fum?: number | null;
+  approved_products: number;
+  live_products: number;
+  asset_classes?: string | null;
+  synced_at: string;
+}
+
+// Rows are written by scripts/sync-platform.mjs (service keys, never in the
+// browser). Empty result = sync has not been run yet.
+export async function loadPlatformFunds(): Promise<PlatformFund[]> {
+  if (!supabaseEnabled) return [];
+  const { data, error } = await client()
+    .from("platform_funds")
+    .select("*")
+    .order("firm_name");
+  if (error) return []; // table may not exist yet — treat as not synced
+  return (data ?? []) as PlatformFund[];
+}
+
 export function newFirmId(name: string, existing: Set<string>): string {
   const base =
     name

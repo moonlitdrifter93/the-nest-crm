@@ -36,6 +36,17 @@ const slugify = (name) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "firm";
 
+// Prefill the PPR/Enterprise plan from note text where unambiguous.
+function detectPlan(d) {
+  if (d.plan) return d.plan;
+  const t = `${d.note ?? ""} ${d.action ?? ""}`.toLowerCase();
+  const ppr = /\bppr\b|pay per reveal|pay-per-reveal/.test(t);
+  const ent = t.includes("enterprise");
+  if (ppr && !ent) return "PPR";
+  if (ent && !ppr) return "Enterprise";
+  return "";
+}
+
 const seen = new Set();
 const clean = [];
 for (const entries of byName.values()) {
@@ -47,7 +58,7 @@ for (const entries of byName.values()) {
   let id = slugify(d.name ?? "");
   for (let i = 2; seen.has(id); i++) id = `${slugify(d.name ?? "")}-${i}`;
   seen.add(id);
-  clean.push({ ...d, id });
+  clean.push({ ...d, id, plan: detectPlan(d) });
 }
 
 clean.sort((a, b) => (a.name ?? "").toLowerCase().localeCompare((b.name ?? "").toLowerCase()));

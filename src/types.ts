@@ -22,10 +22,13 @@ export interface FirmEvent {
   notes?: string;
 }
 
+export type Plan = "" | "PPR" | "Enterprise";
+
 export interface Firm {
   id: string;
   name: string;
   status: Status;
+  plan?: Plan;
   owner?: string;
   owners?: string[];
   contact?: string;
@@ -56,6 +59,10 @@ export interface Firm {
   is_family_office?: boolean;
   tier?: string;
   activities?: string;
+  // Master view (deal book) fields
+  deal_amount?: string;
+  deal_update?: string;
+  deal_update_at?: string;
 }
 
 export const STATUSES: Status[] = [

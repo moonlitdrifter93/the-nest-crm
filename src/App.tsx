@@ -1,24 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
+import { CallSheet } from "./components/CallSheet";
 import { FirmDrawer } from "./components/FirmDrawer";
 import { LiveFundsView } from "./components/LiveFundsView";
+import { MasterView } from "./components/MasterView";
 import { PipelineView } from "./components/PipelineView";
-import { PriorityView } from "./components/PriorityView";
+import { SpifView } from "./components/SpifView";
+import { UniverseView } from "./components/UniverseView";
 import { daysUntil, todayISO } from "./lib/format";
 import {
   client,
   configError,
   deleteFirm,
+  deleteSpif,
   loadFirms,
+  loadSpif,
+  logSpif,
   newFirmId,
   saveFirm,
   supabaseEnabled,
+  type SpifEvent,
 } from "./lib/store";
 import { checkPassword, TEAM, userByEmail, userById, type TeamUser } from "./lib/users";
 import type { Firm } from "./types";
 
 const AUTH_KEY = "nest_crm_user";
 
-type Tab = "priority" | "pipeline" | "funds";
+type Tab = "universe" | "pipeline" | "funds" | "spif" | "master";
 
 export default function App() {
   // With Supabase configured, sign-in is a real Supabase Auth account.
@@ -201,13 +208,16 @@ function LocalGate({ onPass }: { onPass: (user: TeamUser) => void }) {
 function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   const [firms, setFirms] = useState<Firm[] | null>(null);
   const [loadErr, setLoadErr] = useState("");
-  const [tab, setTab] = useState<Tab>("priority");
+  const [tab, setTab] = useState<Tab>("universe");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [spif, setSpif] = useState<SpifEvent[]>([]);
 
   useEffect(() => {
     loadFirms()
       .then(setFirms)
       .catch((e) => setLoadErr(e instanceof Error ? e.message : "Load failed"));
+    loadSpif().then(setSpif).catch(() => {});
   }, []);
 
   const open = useMemo(
@@ -233,6 +243,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   }, [firms]);
 
   async function handleSave(firm: Firm) {
+    const prev = (firms ?? []).find((f) => f.id === firm.id);
     await saveFirm(firm);
     setFirms((fs) => {
       if (!fs) return fs;
@@ -244,6 +255,30 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
       }
       return [...fs, firm];
     });
+
+    // SPIF: log a close when a firm moves into Onboarded or Live.
+    if (
+      (firm.status === "Onboarded" || firm.status === "Live") &&
+      prev &&
+      prev.status !== firm.status
+    ) {
+      const ev: SpifEvent = {
+        ts: new Date().toISOString(),
+        firm_id: firm.id,
+        firm_name: firm.name,
+        owner: firm.owner,
+        kind: firm.status,
+        logged_by: user.name,
+      };
+      logSpif(ev)
+        .then(() => setSpif((s) => [ev, ...s]))
+        .catch(() => {});
+    }
+  }
+
+  async function handleSpifDelete(ev: SpifEvent) {
+    await deleteSpif(ev).catch(() => {});
+    setSpif((s) => s.filter((e) => !(e.ts === ev.ts && e.firm_id === ev.firm_id)));
   }
 
   async function handleDelete(id: string) {
@@ -280,14 +315,26 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
       </header>
 
       <nav className="tabs">
-        <button className={tab === "priority" ? "on" : ""} onClick={() => setTab("priority")}>
-          Priorities
+        <button className={tab === "universe" ? "on" : ""} onClick={() => setTab("universe")}>
+          Universe
         </button>
         <button className={tab === "pipeline" ? "on" : ""} onClick={() => setTab("pipeline")}>
           Pipeline
         </button>
         <button className={tab === "funds" ? "on" : ""} onClick={() => setTab("funds")}>
           Live funds
+        </button>
+        <button className={tab === "spif" ? "on" : ""} onClick={() => setTab("spif")}>
+          SPIF
+        </button>
+        {user.seesAllFunds && (
+          <button className={tab === "master" ? "on" : ""} onClick={() => setTab("master")}>
+            Master
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        <button className="btn primary" onClick={() => setSheetOpen(true)}>
+          📞 Call sheet
         </button>
       </nav>
 
@@ -307,12 +354,31 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
       )}
       {!firms && !loadErr && <div className="empty">Loading firms…</div>}
 
-      {firms && tab === "priority" && <PriorityView firms={firms} onOpen={(f) => setOpenId(f.id)} />}
+      {firms && tab === "universe" && (
+        <UniverseView firms={firms} onOpen={(f) => setOpenId(f.id)} onAdd={handleAdd} />
+      )}
       {firms && tab === "pipeline" && (
-        <PipelineView firms={firms} onOpen={(f) => setOpenId(f.id)} onAdd={handleAdd} />
+        <PipelineView firms={firms} onOpen={(f) => setOpenId(f.id)} />
       )}
       {firms && tab === "funds" && (
         <LiveFundsView firms={firms} user={user} onOpen={(f) => setOpenId(f.id)} />
+      )}
+      {firms && tab === "spif" && (
+        <SpifView events={spif} user={user} onDelete={handleSpifDelete} />
+      )}
+      {firms && tab === "master" && user.seesAllFunds && (
+        <MasterView firms={firms} user={user} onOpen={(f) => setOpenId(f.id)} />
+      )}
+
+      {sheetOpen && firms && (
+        <CallSheet
+          firms={firms}
+          onOpen={(f) => {
+            setSheetOpen(false);
+            setOpenId(f.id);
+          }}
+          onClose={() => setSheetOpen(false)}
+        />
       )}
 
       {open && (

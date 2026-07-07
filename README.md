@@ -8,23 +8,32 @@ engine that surfaces the firms worth acting on next.
 
 ## Views
 
-- **Priorities** — the default view.
-  - *Close queue*: unsigned pipeline (Active / Engaged / Prospecting) ranked by
-    a transparent score. Every card shows exactly why it ranks where it does.
-  - *Platform coverage*: live funds per asset class, worst-covered first.
-    Click a class to focus the queue on firms that would fill that gap.
-  - *On-platform upkeep*: Live/Onboarded firms with an overdue or imminent
-    follow-up, or an open action.
-- **Pipeline** — the full table: search, status/owner/asset-class filters,
-  sortable columns, click any row to edit.
-- **Live funds** — the funds actually on The Nest (Live), plus Onboarded
-  firms coming online. What you see depends on who you sign in as:
-  - *Matthew Downing* — every fund (full view).
-  - *Raphael Pitts / Jack Woods* — a pod: each sees the funds allocated to
-    either of them.
-  - *Timothy Easterbrook* — his own allocations.
-
-  Visibility rules live in `src/lib/users.ts` and are trivial to adjust.
+- **Universe** — the total universe of firms account managers can call to get
+  on The Nest: search, stage/owner/asset-class filters, sortable columns
+  (including the priority score), PPR/Enterprise plan column, click any row
+  to edit.
+- **Pipeline** — the working list of unsigned firms (Active / Engaged /
+  Prospecting), ordered so firms **without a touchpoint float to the top**:
+  never-contacted first, then longest since last contact, with a touch-gap
+  column.
+- **Live funds** — two sources on one page:
+  - *Platform data*: the actual live funds mirrored from The Nest's
+    production database (see *Platform sync* below), with the platform's own
+    Enterprise/PPR flag and live-product counts.
+  - *CRM statuses*: Live and Onboarded firms as tracked by the team.
+  Pod visibility applies (Matthew sees all; Raph/Jack see their pod;
+  Tim his own — rules in `src/lib/users.ts`).
+- **SPIF** — how many funds are being closed. A close is logged automatically
+  whenever a firm's stage moves to **Onboarded** or **Live**: weekly/monthly
+  tiles, an owner leaderboard, and the full log.
+- **Master** *(Matthew only)* — the private deal book: every firm allocated
+  to Matthew or tagged Placement, reduced to Name / Type (Placement,
+  PPR/Enterprise) / Amount / latest Update. Deal amount and update are edited
+  in the firm drawer's *Deal* section.
+- **📞 Call sheet** (button, top right) — the daily list: top 30–50
+  most-likely-to-sign firms with the person to call, their number and email
+  highlighted as click-to-call / click-to-email, the intel notes, and the
+  scoring reasons. Filterable per account manager.
 
 ## Priority score
 
@@ -116,6 +125,27 @@ Every push to `main` deploys. Do not add a `public/_redirects` file — SPA
 fallback is `not_found_handling` in `wrangler.jsonc`, and Workers rejects
 the `/* /index.html 200` rule as a redirect loop. (`netlify.toml` is kept
 so Netlify remains a drop-in alternative.)
+
+## Platform sync (Live funds page)
+
+Fund identities on The Nest are revealed to investors only through paid
+reveals, so the CRM never exposes a public read path into the platform
+database. Instead, `scripts/sync-platform.mjs` mirrors the live-fund list
+into the CRM's own (sign-in-protected) database using service keys that
+stay on your machine:
+
+```bash
+PLATFORM_SUPABASE_URL=https://<platform-project>.supabase.co \
+PLATFORM_SERVICE_ROLE_KEY=<platform service_role key> \
+CRM_SUPABASE_URL=https://zgrlfejlakjwqhhgftrp.supabase.co \
+CRM_SERVICE_ROLE_KEY=<crm service_role key> \
+node scripts/sync-platform.mjs
+```
+
+Both `service_role` keys are under each project's **Project Settings → API**.
+Run it whenever you want the Live funds page refreshed (or wire it to a
+scheduled Supabase Edge Function later). Requires `supabase/
+upgrade-001-spif-platform.sql` to have been run once in the CRM project.
 
 ## Refreshing the seed
 

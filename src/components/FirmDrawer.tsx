@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ASSET_CLASSES, OWNERS, STATUSES, type Firm, type Status } from "../types";
+import { todayISO } from "../lib/format";
+import { ASSET_CLASSES, OWNERS, STATUSES, type Firm, type Plan, type Status } from "../types";
 
 export function FirmDrawer({
   firm,
@@ -99,6 +100,14 @@ export function FirmDrawer({
               {OWNERS.map((o) => (
                 <option key={o}>{o}</option>
               ))}
+            </select>
+          </div>
+          <div className="f">
+            <label>Plan</label>
+            <select value={draft.plan ?? ""} onChange={(e) => set("plan", e.target.value as Plan)}>
+              <option value="">—</option>
+              <option value="PPR">PPR</option>
+              <option value="Enterprise">Enterprise</option>
             </select>
           </div>
           <div className="f">
@@ -214,6 +223,37 @@ export function FirmDrawer({
               />
               Family office
             </label>
+          </div>
+        </div>
+
+        <div className="sect">Deal (master view)</div>
+        <div className="fgrid">
+          <div className="f">
+            <label>Deal amount</label>
+            <input
+              placeholder="$2M"
+              value={draft.deal_amount ?? ""}
+              onChange={(e) => set("deal_amount", e.target.value)}
+            />
+          </div>
+          <div className="f">
+            <label>Update date</label>
+            <input
+              type="date"
+              value={draft.deal_update_at ?? ""}
+              onChange={(e) => set("deal_update_at", e.target.value)}
+            />
+          </div>
+          <div className="f full">
+            <label>Latest update</label>
+            <input
+              placeholder="e.g. Term sheet out, expecting signature this week"
+              value={draft.deal_update ?? ""}
+              onChange={(e) => {
+                set("deal_update", e.target.value);
+                if (!draft.deal_update_at) set("deal_update_at", todayISO());
+              }}
+            />
           </div>
         </div>
 
