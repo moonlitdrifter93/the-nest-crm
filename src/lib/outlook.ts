@@ -28,7 +28,7 @@ const TENANT_ID =
 
 export const outlookConfigured = Boolean(CLIENT_ID && TENANT_ID);
 
-const SCOPES = ["User.Read", "Mail.Read", "Calendars.ReadWrite"];
+const SCOPES = ["User.Read", "Mail.Read", "Mail.Send", "Calendars.ReadWrite"];
 
 let pca: PublicClientApplication | null = null;
 let initPromise: Promise<PublicClientApplication> | null = null;
@@ -143,6 +143,32 @@ export async function emailsWith(addresses: string[]): Promise<OutlookMessage[]>
       incoming: fromAddr !== me,
     };
   });
+}
+
+// Send an email from the connected mailbox via Graph.
+export async function sendMail(to: string, subject: string, body: string): Promise<void> {
+  const t = await token();
+  const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: {
+        subject,
+        body: { contentType: "text", content: body },
+        toRecipients: [{ emailAddress: { address: to } }],
+      },
+      saveToSentItems: true,
+    }),
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    if (res.status === 403 || /Mail\.Send/.test(txt)) {
+      throw new Error(
+        "Sending needs the Mail.Send permission granted in Azure (Entra ID → the CRM app → API permissions → add Mail.Send → Grant admin consent).",
+      );
+    }
+    throw new Error(`Send failed: ${res.status} ${txt}`);
+  }
 }
 
 // Create an Outlook calendar event for a firm follow-up.

@@ -70,7 +70,7 @@ export function MasterView({
   return (
     <div>
       <div className="section-h">
-        Master — deal book
+        Deals
         <span className="hint">
           {deals.length} deals · add, edit, delete, drag to reorder · database-locked to your
           account

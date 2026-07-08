@@ -6,6 +6,7 @@ import { MasterView } from "./components/MasterView";
 import { PipelineView } from "./components/PipelineView";
 import { SpifView } from "./components/SpifView";
 import { UniverseView } from "./components/UniverseView";
+import { isTough } from "./lib/contact";
 import { exportExcel } from "./lib/export";
 import { daysUntil, todayISO, touchFirm } from "./lib/format";
 import {
@@ -44,7 +45,7 @@ const ONBOARDING_URL =
 
 const AUTH_KEY = "nest_crm_user";
 
-type Tab = "universe" | "pipeline" | "funds" | "spif" | "master";
+type Tab = "universe" | "pipeline" | "funds" | "spif" | "deals";
 
 export default function App() {
   // With Supabase configured, sign-in is a real Supabase Auth account.
@@ -235,6 +236,9 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   const [platform, setPlatform] = useState<PlatformFund[]>([]);
   const [outlookUser, setOutlookUser] = useState<string | null>(null);
   const [outlookBusy, setOutlookBusy] = useState(false);
+  const [toughNonce, setToughNonce] = useState(0);
+
+  const toughCount = useMemo(() => (firms ?? []).filter(isTough).length, [firms]);
 
   useEffect(() => {
     loadFirms()
@@ -394,14 +398,6 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         <span className={`sync${supabaseEnabled ? " on" : ""}`}>
           {supabaseEnabled ? "● synced via supabase" : "○ local only — supabase not configured"}
         </span>
-        {outlookConfigured && (
-          <span className={`sync${outlookUser ? " on" : ""}`}>
-            {outlookUser ? "✉ outlook connected" : "○ outlook"} ·{" "}
-            <button disabled={outlookBusy} onClick={toggleOutlook}>
-              {outlookBusy ? "…" : outlookUser ? "disconnect" : "connect"}
-            </button>
-          </span>
-        )}
         <span className="sync">
           {user.email ?? user.name} · <button onClick={onSignOut}>sign out</button>
         </span>
@@ -421,11 +417,23 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
           SPIF
         </button>
         {user.seesAllFunds && (
-          <button className={tab === "master" ? "on" : ""} onClick={() => setTab("master")}>
-            Master
+          <button className={tab === "deals" ? "on" : ""} onClick={() => setTab("deals")}>
+            Deals
           </button>
         )}
         <div style={{ flex: 1 }} />
+        {toughCount > 0 && (
+          <button
+            className="btn"
+            onClick={() => {
+              setToughNonce((n) => n + 1);
+              setTab("pipeline");
+            }}
+            title="Firms with 7+ points of contact, still cold — approach with care"
+          >
+            🪺 Tough basket {toughCount}
+          </button>
+        )}
         <a
           className="btn"
           href={ONBOARDING_URL}
@@ -435,6 +443,20 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         >
           FM onboarding ↗
         </a>
+        {outlookConfigured && (
+          <button
+            className={`btn${outlookUser ? "" : " primary"}`}
+            disabled={outlookBusy}
+            onClick={toggleOutlook}
+            title={
+              outlookUser
+                ? `Connected as ${outlookUser} — click to disconnect`
+                : "Connect your @thenest.com.au mailbox for per-firm emails & calendar"
+            }
+          >
+            {outlookBusy ? "…" : outlookUser ? "✉ Outlook ✓" : "✉ Connect Outlook"}
+          </button>
+        )}
         <button className="btn primary" onClick={() => setSheetOpen(true)}>
           📞 Call sheet
         </button>
@@ -469,7 +491,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         />
       )}
       {firms && tab === "pipeline" && (
-        <PipelineView firms={firms} onOpen={(f) => setOpenId(f.id)} />
+        <PipelineView firms={firms} onOpen={(f) => setOpenId(f.id)} toughRequest={toughNonce} />
       )}
       {firms && tab === "funds" && (
         <LiveFundsView firms={firms} user={user} onOpen={(f) => setOpenId(f.id)} />
@@ -483,7 +505,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
           onDelete={handleSpifDelete}
         />
       )}
-      {firms && tab === "master" && user.seesAllFunds && (
+      {firms && tab === "deals" && user.seesAllFunds && (
         <MasterView
           firms={firms}
           platform={platform}

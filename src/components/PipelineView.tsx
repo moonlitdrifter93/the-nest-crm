@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { contactCount, isTough } from "../lib/contact";
 import { daysUntil, fmtDate, fmtFum, fmtRelative } from "../lib/format";
 import { closeQueue } from "../lib/score";
@@ -16,14 +16,24 @@ const PIPELINE_STATUSES: Status[] = ["Active", "Engaged", "Prospecting"];
 export function PipelineView({
   firms,
   onOpen,
+  toughRequest = 0,
 }: {
   firms: Firm[];
   onOpen: (firm: Firm) => void;
+  toughRequest?: number;
 }) {
   const [ownerFilter, setOwnerFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | null>(null);
   const [toughOnly, setToughOnly] = useState(false);
   const [q, setQ] = useState("");
+
+  // The top-nav "Tough basket" button bumps toughRequest to jump us here filtered.
+  useEffect(() => {
+    if (toughRequest > 0) {
+      setToughOnly(true);
+      setStatusFilter(null);
+    }
+  }, [toughRequest]);
 
   const toughCount = useMemo(() => firms.filter(isTough).length, [firms]);
 

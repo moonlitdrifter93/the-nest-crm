@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { contactCount, isEstimated, isTough } from "../lib/contact";
 import { touchFirm } from "../lib/format";
-import { addFollowupEvent, emailsWith, type OutlookMessage } from "../lib/outlook";
+import { addFollowupEvent, emailsWith, sendMail, type OutlookMessage } from "../lib/outlook";
 import { ASSET_CLASSES, OWNERS, STATUSES, type Firm, type Plan, type Status } from "../types";
 
 export function FirmDrawer({
@@ -25,6 +25,12 @@ export function FirmDrawer({
   const [emails, setEmails] = useState<OutlookMessage[] | null>(null);
   const [emailErr, setEmailErr] = useState("");
   const [calMsg, setCalMsg] = useState("");
+  const [composing, setComposing] = useState(false);
+  const [composeTo, setComposeTo] = useState("");
+  const [composeSubject, setComposeSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [composeMsg, setComposeMsg] = useState("");
+  const [sending, setSending] = useState(false);
 
   const firmAddresses = [
     firm.email,
@@ -49,15 +55,49 @@ export function FirmDrawer({
       return;
     }
     try {
-      await addFollowupEvent(
-        draft.name,
-        draft.followup,
-        draft.action || "",
-        firmAddresses[0],
-      );
-      setCalMsg("Added to your Outlook calendar ✓");
+      await addFollowupEvent(draft.name, draft.followup, draft.action || "", firmAddresses[0]);
+      setCalMsg(`Added to your Outlook calendar for ${draft.followup} ✓`);
     } catch (e) {
       setCalMsg(e instanceof Error ? e.message : "Calendar add failed");
+    }
+  }
+
+  // Pull an email into the firm's notes and count it as an email touchpoint.
+  function saveEmailToNotes(m: OutlookMessage) {
+    const line = `${new Date(m.received).toLocaleDateString("en-AU")} — email — ${m.incoming ? "from" : "to"} ${m.fromName}: ${m.subject}${m.preview ? ` — ${m.preview.slice(0, 200)}` : ""}`;
+    setDraft((d) => ({
+      ...d,
+      last_contact: m.received.slice(0, 10),
+      contact_count: (d.contact_count ?? 0) + 1,
+      note: d.note?.trim() ? `${line}\n${d.note}` : line,
+    }));
+    setCalMsg("Saved to notes — remember to Save the firm.");
+  }
+
+  async function send() {
+    setComposeMsg("");
+    if (!composeTo.trim() || !composeSubject.trim()) {
+      setComposeMsg("Recipient and subject are required.");
+      return;
+    }
+    setSending(true);
+    try {
+      await sendMail(composeTo.trim(), composeSubject.trim(), composeBody);
+      // log the sent email as a touchpoint
+      const line = `${new Date().toLocaleDateString("en-AU")} — email — to ${composeTo.trim()}: ${composeSubject.trim()}`;
+      setDraft((d) => ({
+        ...d,
+        last_contact: new Date().toISOString().slice(0, 10),
+        contact_count: (d.contact_count ?? 0) + 1,
+        note: d.note?.trim() ? `${line}\n${d.note}` : line,
+      }));
+      setComposing(false);
+      setComposeMsg("");
+      setCalMsg("Email sent and logged to notes — Save the firm to keep it.");
+    } catch (e) {
+      setComposeMsg(e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -309,9 +349,15 @@ export function FirmDrawer({
           </div>
         </div>
 
-        {outlookConnected && (
+        <div className="sect">Outlook</div>
+        {!outlookConnected ? (
+          <div className="notice">
+            Connect Outlook (the <b>✉ Connect Outlook</b> button, top right) to pull recent emails
+            with this firm's contacts, compose &amp; log emails, and push follow-ups to your
+            calendar.
+          </div>
+        ) : (
           <>
-            <div className="sect">Outlook</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
               <button
                 className="btn"
@@ -321,35 +367,77 @@ export function FirmDrawer({
               >
                 📥 Recent emails
               </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setComposeTo(firmAddresses[0] ?? "");
+                  setComposeSubject(`The Nest — ${draft.name}`);
+                  setComposeBody(`Hi ${draft.contact?.split(" ")[0] ?? "there"},\n\n`);
+                  setComposing((v) => !v);
+                }}
+              >
+                ✉ Compose email
+              </button>
               <button className="btn" onClick={pushFollowup}>
-                📅 Follow-up → calendar
+                📅 Follow-up → my calendar
               </button>
             </div>
-            {calMsg && <div className="sub" style={{ marginBottom: 8 }}>{calMsg}</div>}
+            {calMsg && <div className="sub" style={{ marginBottom: 8, color: "#6ec98a" }}>{calMsg}</div>}
             {emailErr && (
               <div className="sub" style={{ color: "var(--red)", marginBottom: 8 }}>{emailErr}</div>
             )}
+
+            {composing && (
+              <div className="contact-card" style={{ padding: 12 }}>
+                <div className="f" style={{ marginBottom: 6 }}>
+                  <label>To</label>
+                  <input value={composeTo} onChange={(e) => setComposeTo(e.target.value)} />
+                </div>
+                <div className="f" style={{ marginBottom: 6 }}>
+                  <label>Subject</label>
+                  <input value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} />
+                </div>
+                <div className="f" style={{ marginBottom: 8 }}>
+                  <label>Message</label>
+                  <textarea rows={5} value={composeBody} onChange={(e) => setComposeBody(e.target.value)} />
+                </div>
+                {composeMsg && (
+                  <div className="sub" style={{ color: "var(--red)", marginBottom: 6 }}>{composeMsg}</div>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn primary" disabled={sending} onClick={send}>
+                    {sending ? "Sending…" : "Send from my Outlook"}
+                  </button>
+                  <button className="btn" onClick={() => setComposing(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {emails && emails.length === 0 && (
               <div className="sub" style={{ marginBottom: 8 }}>No emails found with these contacts.</div>
             )}
             {emails?.map((m) => (
-              <a
-                key={m.id}
-                href={m.webLink}
-                target="_blank"
-                rel="noreferrer"
-                className="contact-card"
-                style={{ display: "block", textDecoration: "none" }}
-              >
+              <div key={m.id} className="contact-card">
                 <div className="nm">
-                  {m.incoming ? "↙ " : "↗ "}
-                  {m.subject}
+                  <a href={m.webLink} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                    {m.incoming ? "↙ " : "↗ "}
+                    {m.subject}
+                  </a>
                 </div>
                 <div className="dt">
                   {m.fromName} · {new Date(m.received).toLocaleDateString("en-AU")}
                 </div>
-                <div className="dt" style={{ marginTop: 4 }}>{m.preview.slice(0, 120)}</div>
-              </a>
+                <div className="dt" style={{ marginTop: 4 }}>{m.preview.slice(0, 140)}</div>
+                <button
+                  className="btn"
+                  style={{ padding: "3px 10px", fontSize: 12, marginTop: 6 }}
+                  onClick={() => saveEmailToNotes(m)}
+                >
+                  ＋ Save to notes
+                </button>
+              </div>
             ))}
           </>
         )}
