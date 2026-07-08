@@ -49,7 +49,9 @@ async function rest(base: string, key: string, path: string, init: RequestInit =
     },
   });
   if (!res.ok) throw new Error(`${path}: HTTP ${res.status} ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
+  // PostgREST writes (and 204s) can return an empty body — parse only if present.
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 async function syncPlatform(env: Env, crmUrl: string, crmKey: string): Promise<string> {
@@ -98,7 +100,11 @@ async function syncPlatform(env: Env, crmUrl: string, crmKey: string): Promise<s
     });
   await rest(crmUrl, crmKey, "platform_funds?firm_id=gte.0", { method: "DELETE" });
   if (rows.length) {
-    await rest(crmUrl, crmKey, "platform_funds", { method: "POST", body: JSON.stringify(rows) });
+    await rest(crmUrl, crmKey, "platform_funds", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(rows),
+    });
   }
   return `platform sync: ${rows.length} live funds`;
 }
