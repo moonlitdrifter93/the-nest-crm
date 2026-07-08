@@ -41,20 +41,36 @@ export function fmtDate(iso?: string): string {
 
 // One-tap touchpoint: stamps last_contact today and prepends a timestamped
 // line to the intel notes.
+export type TouchKind = "call" | "email" | "meeting" | "linkedin";
+
 export function touchFirm<
   T extends { last_contact?: string; note?: string; contact_count?: number },
->(firm: T, kind: "call" | "email" | "meeting", who: string): T {
+>(firm: T, kind: TouchKind, who: string, detail?: string): T {
   const today = todayISO();
-  const line = `${fmtDate(today)} — ${kind} — ${who.split(" ")[0]}`;
-  // Establish an explicit count from wherever we were (estimate or stored).
-  const prior =
-    firm.contact_count ?? (firm.note?.match(/^\d{1,2} \w+ \d{4} — (call|email|meeting) —/gim)?.length ?? 0);
+  const d = detail?.trim();
+  const line = `${fmtDate(today)} — ${kind} — ${who.split(" ")[0]}${d ? `: ${d}` : ""}`;
+  // Base the new count on whatever the app currently shows for this firm
+  // (stored count, or the estimate from notes) so logging never resets it.
+  const prior = firm.contact_count ?? estimateContactsFromNote(firm.note);
   return {
     ...firm,
     last_contact: today,
     contact_count: prior + 1,
     note: firm.note?.trim() ? `${line}\n${firm.note}` : line,
   };
+}
+
+// Mirror of contact.ts estimate, kept here to avoid an import cycle.
+function estimateContactsFromNote(note?: string): number {
+  const n = note ?? "";
+  const logged = (n.match(/^\d{1,2} \w+ \d{4} — (call|email|meeting|linkedin) —/gim) ?? []).length;
+  if (logged > 0) return logged;
+  const prose = (
+    n.match(
+      /\b(called|calling|phoned|emailed|e-mailed|spoke|speaking|met with|meeting|reached out|followed up|follow[- ]up|caught up|catch up|sent (?:an? )?(?:email|note|message|follow)|contacted|chased|touch base|touched base|rang)\b/gi,
+    ) ?? []
+  ).length;
+  return Math.min(prose, 10);
 }
 
 export function fmtRelative(iso?: string): string {

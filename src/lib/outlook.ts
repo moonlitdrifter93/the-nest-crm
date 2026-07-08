@@ -53,6 +53,13 @@ async function app(): Promise<PublicClientApplication> {
   return initPromise;
 }
 
+// Initialise MSAL up front (on app mount) so that when the user clicks
+// "Connect", loginPopup opens synchronously within the click — otherwise the
+// initialize() await breaks the user-gesture chain and browsers block the popup.
+export function initOutlook(): void {
+  if (outlookConfigured) void app().catch(() => {});
+}
+
 export function connectedAccount(): AccountInfo | null {
   return pca?.getAllAccounts()[0] ?? null;
 }
@@ -76,14 +83,29 @@ export async function ssoConnect(loginHint: string): Promise<AccountInfo | null>
 }
 
 export async function connectOutlook(loginHint?: string): Promise<AccountInfo> {
+  // app() resolves instantly when initOutlook() already ran on mount, keeping
+  // the popup within the user gesture.
   const instance = await app();
-  const res = await instance.loginPopup({
-    scopes: SCOPES,
-    // Default to the CRM user's own address; only show the chooser if unknown.
-    ...(loginHint ? { loginHint } : { prompt: "select_account" }),
-  });
-  instance.setActiveAccount(res.account);
-  return res.account;
+  try {
+    const res = await instance.loginPopup({
+      scopes: SCOPES,
+      // Default to the CRM user's own address; only show the chooser if unknown.
+      ...(loginHint ? { loginHint } : { prompt: "select_account" }),
+    });
+    instance.setActiveAccount(res.account);
+    return res.account;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/popup_window_error|popup.*block|BrowserAuthError.*popup/i.test(msg)) {
+      throw new Error(
+        "Your browser blocked the Microsoft sign-in popup. Allow popups for crm.thenest.com.au and click Connect again.",
+      );
+    }
+    if (/user_cancelled|user_cancel/i.test(msg)) {
+      throw new Error("Sign-in was cancelled.");
+    }
+    throw new Error(`Outlook sign-in failed: ${msg}`);
+  }
 }
 
 export async function disconnectOutlook(): Promise<void> {

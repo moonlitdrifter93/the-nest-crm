@@ -60,7 +60,9 @@ export interface Firm {
   tier?: string;
   activities?: string;
   contact_count?: number;
-  tough_ack?: boolean; // acknowledged as tough-basket, handle with care
+  // Manual tough-basket override: true = force in, false = force out,
+  // undefined = let the auto heuristic decide.
+  tough?: boolean;
 }
 
 // Master deal book tile — stored in its own `deals` table whose RLS only

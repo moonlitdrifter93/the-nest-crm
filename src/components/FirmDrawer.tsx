@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { contactCount, isEstimated, isTough } from "../lib/contact";
+import { contactCount, isEstimated, isTough, isToughManual } from "../lib/contact";
 import { touchFirm } from "../lib/format";
 import { addFollowupEvent, emailsWith, sendMail, type OutlookMessage } from "../lib/outlook";
 import { ASSET_CLASSES, OWNERS, STATUSES, type Firm, type Plan, type Status } from "../types";
@@ -31,6 +31,7 @@ export function FirmDrawer({
   const [composeBody, setComposeBody] = useState("");
   const [composeMsg, setComposeMsg] = useState("");
   const [sending, setSending] = useState(false);
+  const [logDetail, setLogDetail] = useState("");
 
   const firmAddresses = [
     firm.email,
@@ -113,6 +114,14 @@ export function FirmDrawer({
 
   function set<K extends keyof Firm>(key: K, value: Firm[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
+  }
+
+  function setContact(i: number, key: "name" | "title" | "email" | "phone" | "li", value: string) {
+    setDraft((d) => {
+      const contacts = [...(d.contacts ?? [])];
+      contacts[i] = { ...contacts[i], [key]: value };
+      return { ...d, contacts };
+    });
   }
 
   function toggleAc(ac: string) {
@@ -227,52 +236,98 @@ export function FirmDrawer({
             <input value={draft.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
           </div>
           <div className="f full">
-            <label>LinkedIn</label>
+            <label>
+              LinkedIn{" "}
+              {draft.li?.trim() && (
+                <a href={liUrl(draft.li)} target="_blank" rel="noreferrer" style={{ fontSize: 11 }}>
+                  ↗ open
+                </a>
+              )}
+            </label>
             <input value={draft.li ?? ""} onChange={(e) => set("li", e.target.value)} />
           </div>
         </div>
 
-        {(draft.contacts?.length ?? 0) > 0 && (
-          <>
-            <div className="sect">Additional contacts</div>
-            {draft.contacts!.map((c, i) => (
-              <div key={i} className="contact-card">
-                <div className="nm">
-                  {c.name} {c.title && <span className="dt">— {c.title}</span>}
-                </div>
-                <div className="dt">
-                  {[c.email, c.phone].filter(Boolean).join(" · ")}
-                  {c.li && (
-                    <>
-                      {" · "}
-                      <a href={c.li} target="_blank" rel="noreferrer">
-                        LinkedIn
-                      </a>
-                    </>
-                  )}
-                </div>
+        <div className="sect">
+          Additional contacts
+          <button
+            className="btn"
+            style={{ float: "right", padding: "3px 12px", fontSize: 12 }}
+            onClick={() =>
+              set("contacts", [...(draft.contacts ?? []), { name: "", title: "", email: "", phone: "", li: "" }])
+            }
+          >
+            + Add contact
+          </button>
+        </div>
+        {(draft.contacts ?? []).map((c, i) => (
+          <div key={i} className="contact-card" style={{ padding: 12 }}>
+            <div className="fgrid">
+              <div className="f">
+                <label>Name</label>
+                <input value={c.name ?? ""} onChange={(e) => setContact(i, "name", e.target.value)} />
               </div>
-            ))}
-          </>
-        )}
+              <div className="f">
+                <label>Title</label>
+                <input value={c.title ?? ""} onChange={(e) => setContact(i, "title", e.target.value)} />
+              </div>
+              <div className="f">
+                <label>Email</label>
+                <input value={c.email ?? ""} onChange={(e) => setContact(i, "email", e.target.value)} />
+              </div>
+              <div className="f">
+                <label>Phone</label>
+                <input value={c.phone ?? ""} onChange={(e) => setContact(i, "phone", e.target.value)} />
+              </div>
+              <div className="f full">
+                <label>
+                  LinkedIn{" "}
+                  {c.li?.trim() && (
+                    <a href={liUrl(c.li)} target="_blank" rel="noreferrer" style={{ fontSize: 11 }}>
+                      ↗ open
+                    </a>
+                  )}
+                </label>
+                <input value={c.li ?? ""} onChange={(e) => setContact(i, "li", e.target.value)} />
+              </div>
+            </div>
+            <button
+              className="btn danger"
+              style={{ padding: "3px 12px", fontSize: 12, marginTop: 6 }}
+              onClick={() => set("contacts", (draft.contacts ?? []).filter((_, j) => j !== i))}
+            >
+              Remove contact
+            </button>
+          </div>
+        ))}
 
         <div className="sect">Pipeline</div>
         {isTough(draft) && (
           <div className="notice" style={{ borderColor: "#5a4326", color: "#d0a878" }}>
-            🪺 <b>Tough basket</b> — {contactCount(draft)} points of contact and still cold. Don't
+            🪺 <b>Tough basket</b>
+            {isToughManual(draft) ? " (flagged by hand)" : " — chased with no response"}. Don't
             cross them off; approach with care — change the angle and lead with something useful.
           </div>
         )}
+        <div className="f full" style={{ marginBottom: 8 }}>
+          <label>Log a touchpoint — optional note</label>
+          <input
+            placeholder="e.g. left voicemail / discussed AFSL / sent deck…"
+            value={logDetail}
+            onChange={(e) => setLogDetail(e.target.value)}
+          />
+        </div>
         <div className="tickrow" style={{ marginBottom: 12 }}>
-          {(["call", "email", "meeting"] as const).map((kind) => (
+          {(["call", "email", "meeting", "linkedin"] as const).map((kind) => (
             <button
               key={kind}
               className="btn"
               disabled={busy}
-              title={`Stamps last contact today and adds a note line, then saves`}
+              title="Stamps last contact today, adds a dated note line, bumps the count, then saves"
               onClick={async () => {
-                const touched = touchFirm(draft, kind, userName);
+                const touched = touchFirm(draft, kind, userName, logDetail);
                 setDraft(touched);
+                setLogDetail("");
                 setBusy(true);
                 try {
                   await onSave(touched);
@@ -283,9 +338,30 @@ export function FirmDrawer({
                 }
               }}
             >
-              {kind === "call" ? "☎ Log call" : kind === "email" ? "✉ Log email" : "👥 Log meeting"}
+              {kind === "call"
+                ? "☎ Log call"
+                : kind === "email"
+                  ? "✉ Log email"
+                  : kind === "meeting"
+                    ? "👥 Log meeting"
+                    : "in Log LinkedIn"}
             </button>
           ))}
+        </div>
+        <div className="tickrow" style={{ marginBottom: 12 }}>
+          <label title="Manually mark this firm as tough (gone cold). Overrides the auto guess.">
+            <input
+              type="checkbox"
+              checked={isTough(draft)}
+              onChange={(e) => set("tough", e.target.checked)}
+            />
+            🪺 In tough basket (gone cold)
+          </label>
+          {draft.tough !== undefined && (
+            <button className="btn" style={{ padding: "2px 10px", fontSize: 12 }} onClick={() => set("tough", undefined)}>
+              reset to auto
+            </button>
+          )}
         </div>
         <div className="fgrid">
           <div className="f">
@@ -483,4 +559,13 @@ export function FirmDrawer({
       </div>
     </>
   );
+}
+
+// Normalise a LinkedIn value (full URL or bare "in/slug" / "slug") to a URL.
+function liUrl(li: string): string {
+  const v = li.trim();
+  if (/^https?:\/\//i.test(v)) return v;
+  if (/^(www\.)?linkedin\.com/i.test(v)) return `https://${v}`;
+  if (/^in\//i.test(v)) return `https://www.linkedin.com/${v}`;
+  return `https://www.linkedin.com/in/${v.replace(/^\/+/, "")}`;
 }

@@ -12,6 +12,7 @@ import { daysUntil, todayISO, touchFirm } from "./lib/format";
 import {
   connectOutlook,
   disconnectOutlook,
+  initOutlook,
   outlookConfigured,
   restoreOutlook,
   ssoConnect,
@@ -237,6 +238,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   const [platform, setPlatform] = useState<PlatformFund[]>([]);
   const [outlookUser, setOutlookUser] = useState<string | null>(null);
   const [outlookBusy, setOutlookBusy] = useState(false);
+  const [outlookErr, setOutlookErr] = useState("");
   const [toughNonce, setToughNonce] = useState(0);
 
   const toughCount = useMemo(() => (firms ?? []).filter(isTough).length, [firms]);
@@ -250,6 +252,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
       loadDeals().then(setDeals).catch(() => {});
       loadPlatformFunds().then(setPlatform).catch(() => {});
     }
+    initOutlook(); // pre-init MSAL so the Connect popup isn't blocked
     // Auto-connect Outlook to the signed-in person's mailbox: reuse an existing
     // session if there is one, else try a silent SSO with their email. If that
     // needs interaction, we quietly leave the Connect button for them.
@@ -272,6 +275,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
 
   async function toggleOutlook() {
     setOutlookBusy(true);
+    setOutlookErr("");
     try {
       if (outlookUser) {
         await disconnectOutlook();
@@ -280,8 +284,8 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         const acc = await connectOutlook(user.email);
         setOutlookUser(acc.username);
       }
-    } catch {
-      /* popup closed or denied */
+    } catch (e) {
+      setOutlookErr(e instanceof Error ? e.message : "Outlook sign-in failed.");
     } finally {
       setOutlookBusy(false);
     }
@@ -445,7 +449,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
               setToughNonce((n) => n + 1);
               setTab("pipeline");
             }}
-            title="Firms with 7+ points of contact, still cold — approach with care"
+            title="Firms chased repeatedly with no response, or flagged by hand — approach with care"
           >
             🪺 Tough basket {toughCount}
           </button>
@@ -477,6 +481,15 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
           📞 Call sheet
         </button>
       </nav>
+
+      {outlookErr && (
+        <div className="notice" style={{ borderColor: "#5a3830", color: "var(--red)" }}>
+          {outlookErr}{" "}
+          <button onClick={() => setOutlookErr("")} style={{ color: "var(--tx3)" }}>
+            dismiss
+          </button>
+        </div>
+      )}
 
       <div className="stats">
         <Stat n={stats.total} label="Firms" />
