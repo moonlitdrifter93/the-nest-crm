@@ -14,6 +14,7 @@ import {
   disconnectOutlook,
   outlookConfigured,
   restoreOutlook,
+  ssoConnect,
 } from "./lib/outlook";
 import {
   client,
@@ -249,9 +250,24 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
       loadDeals().then(setDeals).catch(() => {});
       loadPlatformFunds().then(setPlatform).catch(() => {});
     }
-    restoreOutlook()
-      .then((acc) => setOutlookUser(acc?.username ?? null))
-      .catch(() => {});
+    // Auto-connect Outlook to the signed-in person's mailbox: reuse an existing
+    // session if there is one, else try a silent SSO with their email. If that
+    // needs interaction, we quietly leave the Connect button for them.
+    (async () => {
+      try {
+        const existing = await restoreOutlook();
+        if (existing) {
+          setOutlookUser(existing.username);
+          return;
+        }
+        if (user.email) {
+          const acc = await ssoConnect(user.email);
+          setOutlookUser(acc?.username ?? null);
+        }
+      } catch {
+        /* interaction required — manual connect */
+      }
+    })();
   }, [user]);
 
   async function toggleOutlook() {
@@ -261,7 +277,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         await disconnectOutlook();
         setOutlookUser(null);
       } else {
-        const acc = await connectOutlook();
+        const acc = await connectOutlook(user.email);
         setOutlookUser(acc.username);
       }
     } catch {

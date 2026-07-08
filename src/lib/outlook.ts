@@ -63,9 +63,25 @@ export async function restoreOutlook(): Promise<AccountInfo | null> {
   return instance.getAllAccounts()[0] ?? null;
 }
 
-export async function connectOutlook(): Promise<AccountInfo> {
+// Silent sign-in using the CRM user's email as the hint. Succeeds without any
+// popup when the person already has a Microsoft session in this browser (the
+// usual case for @thenest.com.au users). Throws if interaction is required —
+// callers should treat that as "fall back to the Connect button".
+export async function ssoConnect(loginHint: string): Promise<AccountInfo | null> {
+  if (!outlookConfigured || !loginHint) return null;
   const instance = await app();
-  const res = await instance.loginPopup({ scopes: SCOPES, prompt: "select_account" });
+  const res = await instance.ssoSilent({ scopes: SCOPES, loginHint });
+  instance.setActiveAccount(res.account);
+  return res.account;
+}
+
+export async function connectOutlook(loginHint?: string): Promise<AccountInfo> {
+  const instance = await app();
+  const res = await instance.loginPopup({
+    scopes: SCOPES,
+    // Default to the CRM user's own address; only show the chooser if unknown.
+    ...(loginHint ? { loginHint } : { prompt: "select_account" }),
+  });
   instance.setActiveAccount(res.account);
   return res.account;
 }
