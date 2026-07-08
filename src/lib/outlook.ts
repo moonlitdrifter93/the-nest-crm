@@ -53,11 +53,19 @@ async function app(): Promise<PublicClientApplication> {
   return initPromise;
 }
 
-// Initialise MSAL up front (on app mount) so that when the user clicks
-// "Connect", loginPopup opens synchronously within the click — otherwise the
-// initialize() await breaks the user-gesture chain and browsers block the popup.
-export function initOutlook(): void {
-  if (outlookConfigured) void app().catch(() => {});
+// Initialise MSAL up front (on app mount): completes any redirect sign-in we're
+// returning from, and pre-warms the instance so a later loginPopup opens
+// synchronously within the click (else the initialize() await gets it blocked).
+// Returns the connected account if there is one.
+export async function initOutlook(): Promise<AccountInfo | null> {
+  if (!outlookConfigured) return null;
+  const instance = await app();
+  const redirectResult = await instance.handleRedirectPromise();
+  if (redirectResult?.account) {
+    instance.setActiveAccount(redirectResult.account);
+    return redirectResult.account;
+  }
+  return instance.getAllAccounts()[0] ?? null;
 }
 
 export function connectedAccount(): AccountInfo | null {
@@ -96,10 +104,16 @@ export async function connectOutlook(loginHint?: string): Promise<AccountInfo> {
     return res.account;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (/popup_window_error|popup.*block|BrowserAuthError.*popup/i.test(msg)) {
-      throw new Error(
-        "Your browser blocked the Microsoft sign-in popup. Allow popups for crm.thenest.com.au and click Connect again.",
-      );
+    // Popup blocked (common on mobile Safari / strict browsers) → fall back to
+    // a full-page redirect, which no browser blocks. The page navigates to
+    // Microsoft and back; initOutlook() completes the sign-in on return.
+    if (/popup_window_error|popup.*block|BrowserAuthError.*popup|window\.open/i.test(msg)) {
+      await instance.loginRedirect({
+        scopes: SCOPES,
+        ...(loginHint ? { loginHint } : {}),
+      });
+      // loginRedirect navigates away; this line isn't reached.
+      return instance.getAllAccounts()[0] as AccountInfo;
     }
     if (/user_cancelled|user_cancel/i.test(msg)) {
       throw new Error("Sign-in was cancelled.");
