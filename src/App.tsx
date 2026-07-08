@@ -481,6 +481,16 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         </button>
       </nav>
 
+      {outlookConfigured &&
+        typeof window !== "undefined" &&
+        !window.crypto?.subtle && (
+          <div className="notice" style={{ borderColor: "#5a4326", color: "#d0a878" }}>
+            ⚠ Outlook sign-in won't work in this browser — it's an in-app browser (e.g. opened
+            from WhatsApp, Teams, LinkedIn or an email) or an outdated one. Open{" "}
+            <b>crm.thenest.com.au</b> directly in <b>Safari, Chrome or Edge</b> to connect Outlook.
+            Everything else works fine here.
+          </div>
+        )}
       {outlookErr && (
         <div className="notice" style={{ borderColor: "#5a3830", color: "var(--red)" }}>
           {outlookErr}{" "}
