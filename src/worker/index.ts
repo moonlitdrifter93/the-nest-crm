@@ -270,6 +270,17 @@ export default {
 
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    // Unauthenticated: reports WHICH runtime secrets are set (booleans only,
+    // never the values) so misconfiguration is easy to diagnose.
+    if (url.pathname === "/__health") {
+      return Response.json({
+        CRM_SERVICE_ROLE_KEY: Boolean(env.CRM_SERVICE_ROLE_KEY),
+        RESEND_API_KEY: Boolean(env.RESEND_API_KEY),
+        DIGEST_TEST_TOKEN: Boolean(env.DIGEST_TEST_TOKEN),
+        PLATFORM_SUPABASE_URL: Boolean(env.PLATFORM_SUPABASE_URL),
+        PLATFORM_SERVICE_ROLE_KEY: Boolean(env.PLATFORM_SERVICE_ROLE_KEY),
+      });
+    }
     if (url.pathname === "/__digest") {
       if (!env.DIGEST_TEST_TOKEN || url.searchParams.get("token") !== env.DIGEST_TEST_TOKEN) {
         return new Response("forbidden", { status: 403 });

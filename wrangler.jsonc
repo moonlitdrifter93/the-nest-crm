@@ -10,7 +10,7 @@
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/__digest"]
+    "run_worker_first": ["/__digest", "/__health"]
   },
   "triggers": {
     // 22:30 UTC = 8:30am AEST daily digest (9:30am in Sydney during daylight saving)
