@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
+import { contactCount, isTough } from "../lib/contact";
 import { daysUntil, fmtDate, fmtFum, fmtRelative } from "../lib/format";
 import { closeQueue } from "../lib/score";
 import { OWNERS, type Firm, type Status } from "../types";
-import { StatusBadge } from "./StatusBadge";
+import { StatusBadge, ToughBadge } from "./StatusBadge";
 
 /*
  * Pipeline — the working list of unsigned firms, ordered so the ones that
@@ -21,7 +22,10 @@ export function PipelineView({
 }) {
   const [ownerFilter, setOwnerFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | null>(null);
+  const [toughOnly, setToughOnly] = useState(false);
   const [q, setQ] = useState("");
+
+  const toughCount = useMemo(() => firms.filter(isTough).length, [firms]);
 
   const scores = useMemo(() => {
     const m = new Map<string, number>();
@@ -33,7 +37,9 @@ export function PipelineView({
     const needle = q.trim().toLowerCase();
     return firms
       .filter((f) => {
-        if (!PIPELINE_STATUSES.includes(f.status)) return false;
+        if (toughOnly) {
+          if (!isTough(f)) return false;
+        } else if (!PIPELINE_STATUSES.includes(f.status)) return false;
         if (ownerFilter && f.owner !== ownerFilter) return false;
         if (statusFilter && f.status !== statusFilter) return false;
         if (needle) {
@@ -53,7 +59,7 @@ export function PipelineView({
         if (ac !== bc) return ac.localeCompare(bc);
         return (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0);
       });
-  }, [firms, ownerFilter, statusFilter, q, scores]);
+  }, [firms, ownerFilter, statusFilter, toughOnly, q, scores]);
 
   const counts = useMemo(() => {
     const m = new Map<string, number>();
@@ -90,19 +96,46 @@ export function PipelineView({
       </div>
 
       <div className="fchips">
-        <button className={statusFilter === null ? "on" : ""} onClick={() => setStatusFilter(null)}>
+        <button
+          className={!toughOnly && statusFilter === null ? "on" : ""}
+          onClick={() => {
+            setToughOnly(false);
+            setStatusFilter(null);
+          }}
+        >
           All {[...counts.values()].reduce((s, n) => s + n, 0)}
         </button>
         {PIPELINE_STATUSES.map((s) => (
           <button
             key={s}
-            className={statusFilter === s ? "on" : ""}
-            onClick={() => setStatusFilter(statusFilter === s ? null : s)}
+            className={!toughOnly && statusFilter === s ? "on" : ""}
+            onClick={() => {
+              setToughOnly(false);
+              setStatusFilter(statusFilter === s ? null : s);
+            }}
           >
             {s} {counts.get(s) ?? 0}
           </button>
         ))}
+        <button
+          className={toughOnly ? "on" : ""}
+          onClick={() => {
+            setToughOnly((v) => !v);
+            setStatusFilter(null);
+          }}
+          title="7+ points of contact, still cold — approach with care, don't cross off"
+        >
+          🪺 Tough basket {toughCount}
+        </button>
       </div>
+
+      {toughOnly && (
+        <div className="notice">
+          These firms have had <b>7 or more points of contact</b> without engaging. We don't cross
+          them off — approach with care: change the angle, space out the touches, and lead with
+          something genuinely useful to them.
+        </div>
+      )}
 
       <div className="tbl-wrap">
         <table className="grid">
@@ -113,6 +146,7 @@ export function PipelineView({
               <th>Plan</th>
               <th>Owner</th>
               <th>FUM</th>
+              <th>Contacts</th>
               <th>Touch gap</th>
               <th>Last contact</th>
               <th>Follow-up</th>
@@ -126,7 +160,7 @@ export function PipelineView({
               return (
                 <tr key={f.id} className="row" onClick={() => onOpen(f)}>
                   <td>
-                    {f.name}
+                    {f.name} {isTough(f) && <ToughBadge count={contactCount(f)} />}
                     {f.contact && <div className="sub">{f.contact}</div>}
                   </td>
                   <td>
@@ -141,6 +175,7 @@ export function PipelineView({
                   </td>
                   <td>{f.owner || <span className="sub">—</span>}</td>
                   <td className="mono">{fmtFum(f.fum)}</td>
+                  <td className={`mono${contactCount(f) >= 7 ? " soon" : ""}`}>×{contactCount(f)}</td>
                   <td className={`mono${gap === null ? " overdue" : gap > 60 ? " soon" : ""}`}>
                     {gap === null ? "never" : `${gap}d ago`}
                   </td>

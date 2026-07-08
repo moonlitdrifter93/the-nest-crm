@@ -41,16 +41,18 @@ export function fmtDate(iso?: string): string {
 
 // One-tap touchpoint: stamps last_contact today and prepends a timestamped
 // line to the intel notes.
-export function touchFirm<T extends { last_contact?: string; note?: string }>(
-  firm: T,
-  kind: "call" | "email" | "meeting",
-  who: string,
-): T {
+export function touchFirm<
+  T extends { last_contact?: string; note?: string; contact_count?: number },
+>(firm: T, kind: "call" | "email" | "meeting", who: string): T {
   const today = todayISO();
   const line = `${fmtDate(today)} — ${kind} — ${who.split(" ")[0]}`;
+  // Establish an explicit count from wherever we were (estimate or stored).
+  const prior =
+    firm.contact_count ?? (firm.note?.match(/^\d{1,2} \w+ \d{4} — (call|email|meeting) —/gim)?.length ?? 0);
   return {
     ...firm,
     last_contact: today,
+    contact_count: prior + 1,
     note: firm.note?.trim() ? `${line}\n${firm.note}` : line,
   };
 }

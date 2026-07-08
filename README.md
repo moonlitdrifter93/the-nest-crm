@@ -47,6 +47,19 @@ engine that surfaces the firms worth acting on next.
   permanent dismissal.
 - **PWA** — installable to a phone home screen (manifest + icons); the call
   sheet's tap-to-call is the mobile use case.
+- **Tough basket** (Pipeline filter) — firms with **7+ points of contact**
+  that are still cold (Prospecting / Not Now). We don't cross them off — they
+  get a 🪺 tag, a care banner, and their own filter so they're worked
+  deliberately. Contact count is logged by the touchpoint buttons and shown
+  as a column; it's estimated from notes until the first logged touch and is
+  editable per firm (`src/lib/contact.ts`).
+- **Outlook / Microsoft 365** — "connect" in the header signs the current
+  user into their @thenest.com.au mailbox (MSAL, per-user, tokens in-session
+  only). Once connected, each firm's drawer can pull **recent emails** with
+  its contacts and push a **follow-up to the Outlook calendar**. Azure app:
+  single-tenant SPA, Graph delegated `User.Read` / `Mail.Read` /
+  `Calendars.ReadWrite`; client & tenant IDs in `src/lib/outlook.ts`
+  (overridable via `VITE_MS_CLIENT_ID` / `VITE_MS_TENANT_ID`).
 
 ## Daily digest & automations (Cloudflare cron)
 

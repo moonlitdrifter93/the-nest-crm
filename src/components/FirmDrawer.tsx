@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
+import { contactCount, isEstimated, isTough } from "../lib/contact";
 import { touchFirm } from "../lib/format";
+import { addFollowupEvent, emailsWith, type OutlookMessage } from "../lib/outlook";
 import { ASSET_CLASSES, OWNERS, STATUSES, type Firm, type Plan, type Status } from "../types";
 
 export function FirmDrawer({
   firm,
   userName,
+  outlookConnected,
   onSave,
   onDelete,
   onClose,
 }: {
   firm: Firm;
   userName: string;
+  outlookConnected: boolean;
   onSave: (firm: Firm) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onClose: () => void;
@@ -18,6 +22,44 @@ export function FirmDrawer({
   const [draft, setDraft] = useState<Firm>({ ...firm });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [emails, setEmails] = useState<OutlookMessage[] | null>(null);
+  const [emailErr, setEmailErr] = useState("");
+  const [calMsg, setCalMsg] = useState("");
+
+  const firmAddresses = [
+    firm.email,
+    firm.email2,
+    ...(firm.contacts ?? []).map((c) => c.email),
+  ].filter((e): e is string => Boolean(e?.trim()));
+
+  async function loadEmails() {
+    setEmailErr("");
+    setEmails(null);
+    try {
+      setEmails(await emailsWith(firmAddresses));
+    } catch (e) {
+      setEmailErr(e instanceof Error ? e.message : "Could not load emails");
+    }
+  }
+
+  async function pushFollowup() {
+    setCalMsg("");
+    if (!draft.followup) {
+      setCalMsg("Set a follow-up date first.");
+      return;
+    }
+    try {
+      await addFollowupEvent(
+        draft.name,
+        draft.followup,
+        draft.action || "",
+        firmAddresses[0],
+      );
+      setCalMsg("Added to your Outlook calendar ✓");
+    } catch (e) {
+      setCalMsg(e instanceof Error ? e.message : "Calendar add failed");
+    }
+  }
 
   useEffect(() => setDraft({ ...firm }), [firm]);
 
@@ -175,6 +217,12 @@ export function FirmDrawer({
         )}
 
         <div className="sect">Pipeline</div>
+        {isTough(draft) && (
+          <div className="notice" style={{ borderColor: "#5a4326", color: "#d0a878" }}>
+            🪺 <b>Tough basket</b> — {contactCount(draft)} points of contact and still cold. Don't
+            cross them off; approach with care — change the angle and lead with something useful.
+          </div>
+        )}
         <div className="tickrow" style={{ marginBottom: 12 }}>
           {(["call", "email", "meeting"] as const).map((kind) => (
             <button
@@ -200,6 +248,15 @@ export function FirmDrawer({
           ))}
         </div>
         <div className="fgrid">
+          <div className="f">
+            <label>Points of contact{isEstimated(draft) ? " (est.)" : ""}</label>
+            <input
+              type="number"
+              min={0}
+              value={contactCount(draft)}
+              onChange={(e) => set("contact_count", Math.max(0, Number(e.target.value) || 0))}
+            />
+          </div>
           <div className="f">
             <label>Last contact</label>
             <input
@@ -251,6 +308,51 @@ export function FirmDrawer({
             </label>
           </div>
         </div>
+
+        {outlookConnected && (
+          <>
+            <div className="sect">Outlook</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <button
+                className="btn"
+                disabled={firmAddresses.length === 0}
+                title={firmAddresses.length === 0 ? "No contact email on file" : ""}
+                onClick={loadEmails}
+              >
+                📥 Recent emails
+              </button>
+              <button className="btn" onClick={pushFollowup}>
+                📅 Follow-up → calendar
+              </button>
+            </div>
+            {calMsg && <div className="sub" style={{ marginBottom: 8 }}>{calMsg}</div>}
+            {emailErr && (
+              <div className="sub" style={{ color: "var(--red)", marginBottom: 8 }}>{emailErr}</div>
+            )}
+            {emails && emails.length === 0 && (
+              <div className="sub" style={{ marginBottom: 8 }}>No emails found with these contacts.</div>
+            )}
+            {emails?.map((m) => (
+              <a
+                key={m.id}
+                href={m.webLink}
+                target="_blank"
+                rel="noreferrer"
+                className="contact-card"
+                style={{ display: "block", textDecoration: "none" }}
+              >
+                <div className="nm">
+                  {m.incoming ? "↙ " : "↗ "}
+                  {m.subject}
+                </div>
+                <div className="dt">
+                  {m.fromName} · {new Date(m.received).toLocaleDateString("en-AU")}
+                </div>
+                <div className="dt" style={{ marginTop: 4 }}>{m.preview.slice(0, 120)}</div>
+              </a>
+            ))}
+          </>
+        )}
 
         <div className="sect">Asset classes</div>
         <div className="acgrid">

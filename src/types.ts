@@ -59,6 +59,8 @@ export interface Firm {
   is_family_office?: boolean;
   tier?: string;
   activities?: string;
+  contact_count?: number;
+  tough_ack?: boolean; // acknowledged as tough-basket, handle with care
 }
 
 // Master deal book tile — stored in its own `deals` table whose RLS only

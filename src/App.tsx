@@ -9,6 +9,12 @@ import { UniverseView } from "./components/UniverseView";
 import { exportExcel } from "./lib/export";
 import { daysUntil, todayISO, touchFirm } from "./lib/format";
 import {
+  connectOutlook,
+  disconnectOutlook,
+  outlookConfigured,
+  restoreOutlook,
+} from "./lib/outlook";
+import {
   client,
   configError,
   createDeal,
@@ -227,6 +233,8 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
   const [spif, setSpif] = useState<SpifEvent[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [platform, setPlatform] = useState<PlatformFund[]>([]);
+  const [outlookUser, setOutlookUser] = useState<string | null>(null);
+  const [outlookBusy, setOutlookBusy] = useState(false);
 
   useEffect(() => {
     loadFirms()
@@ -237,7 +245,27 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
       loadDeals().then(setDeals).catch(() => {});
       loadPlatformFunds().then(setPlatform).catch(() => {});
     }
+    restoreOutlook()
+      .then((acc) => setOutlookUser(acc?.username ?? null))
+      .catch(() => {});
   }, [user]);
+
+  async function toggleOutlook() {
+    setOutlookBusy(true);
+    try {
+      if (outlookUser) {
+        await disconnectOutlook();
+        setOutlookUser(null);
+      } else {
+        const acc = await connectOutlook();
+        setOutlookUser(acc.username);
+      }
+    } catch {
+      /* popup closed or denied */
+    } finally {
+      setOutlookBusy(false);
+    }
+  }
 
   async function handleDealCreate(deal: Deal) {
     try {
@@ -366,6 +394,14 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         <span className={`sync${supabaseEnabled ? " on" : ""}`}>
           {supabaseEnabled ? "● synced via supabase" : "○ local only — supabase not configured"}
         </span>
+        {outlookConfigured && (
+          <span className={`sync${outlookUser ? " on" : ""}`}>
+            {outlookUser ? "✉ outlook connected" : "○ outlook"} ·{" "}
+            <button disabled={outlookBusy} onClick={toggleOutlook}>
+              {outlookBusy ? "…" : outlookUser ? "disconnect" : "connect"}
+            </button>
+          </span>
+        )}
         <span className="sync">
           {user.email ?? user.name} · <button onClick={onSignOut}>sign out</button>
         </span>
@@ -475,6 +511,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         <FirmDrawer
           firm={open}
           userName={user.name}
+          outlookConnected={Boolean(outlookUser)}
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={() => setOpenId(null)}
