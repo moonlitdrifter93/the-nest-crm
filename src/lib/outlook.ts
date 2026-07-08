@@ -91,6 +91,13 @@ export async function ssoConnect(loginHint: string): Promise<AccountInfo | null>
 }
 
 export async function connectOutlook(loginHint?: string): Promise<AccountInfo> {
+  // MSAL needs the Web Crypto API, which in-app browsers (WhatsApp/Teams/
+  // LinkedIn webviews) and insecure contexts don't expose.
+  if (typeof window === "undefined" || !window.crypto?.subtle) {
+    throw new Error(
+      "This browser can't run Microsoft sign-in. Open https://crm.thenest.com.au directly in Chrome, Edge or Safari — not inside another app's in-app browser.",
+    );
+  }
   // app() resolves instantly when initOutlook() already ran on mount, keeping
   // the popup within the user gesture.
   const instance = await app();
