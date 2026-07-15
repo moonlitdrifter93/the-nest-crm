@@ -66,6 +66,16 @@ export function PartnersAdmin({ firms }: { firms: Firm[] }) {
             Partners {partners.length}
           </button>
         </div>
+        <button
+          className="btn primary"
+          style={{ marginLeft: 10 }}
+          onClick={() => {
+            setView("partners");
+            setEditing({ id: "", email: "", name: "" });
+          }}
+        >
+          + Add Partner
+        </button>
       </div>
 
       {view === "intros" && (
