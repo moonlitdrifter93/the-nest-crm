@@ -73,6 +73,21 @@ export async function loadPartners(): Promise<Partner[]> {
   return (data ?? []) as Partner[];
 }
 
+// Create the partner's Supabase Auth login via the server-side worker
+// (team-only, uses the service key that never touches the browser).
+export async function createPartnerLogin(email: string, password: string): Promise<void> {
+  const { data } = await client().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Not signed in.");
+  const res = await fetch("/__admin/create-partner", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ email, password }),
+  });
+  const j = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new Error(j.error || "Could not create login.");
+}
+
 export async function savePartner(p: Partial<Partner> & { email: string; name: string }): Promise<void> {
   const row = {
     email: p.email,

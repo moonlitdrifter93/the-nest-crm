@@ -293,6 +293,56 @@ export default {
       }
       return new Response(await runDigest(env));
     }
+    // Create a partner's login account. Team-only: the caller's Supabase
+    // access token must belong to a team member. Uses the service key
+    // (server-side) so no admin credential ever touches the browser.
+    if (url.pathname === "/__admin/create-partner" && request.method === "POST") {
+      return createPartner(request, env);
+    }
     return new Response("not found", { status: 404 });
   },
 };
+
+const TEAM_EMAILS = new Set(RECIPIENTS.map((r) => r.email.toLowerCase()));
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+async function createPartner(request: Request, env: Env): Promise<Response> {
+  const crmUrl = env.CRM_SUPABASE_URL || DEFAULT_CRM_URL;
+  const key = env.CRM_SERVICE_ROLE_KEY;
+  if (!key) return json({ error: "Server not configured (missing service key)." }, 500);
+
+  // 1. Verify the caller is a signed-in team member.
+  const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!token) return json({ error: "Not signed in." }, 401);
+  const whoRes = await fetch(`${crmUrl}/auth/v1/user`, {
+    headers: { apikey: key, Authorization: `Bearer ${token}` },
+  });
+  if (!whoRes.ok) return json({ error: "Session invalid." }, 401);
+  const who = (await whoRes.json()) as { email?: string };
+  if (!who.email || !TEAM_EMAILS.has(who.email.toLowerCase())) {
+    return json({ error: "Only The Nest team can create partner logins." }, 403);
+  }
+
+  // 2. Create the auth user with the service key.
+  const body = (await request.json().catch(() => ({}))) as { email?: string; password?: string };
+  if (!body.email || !body.password) return json({ error: "Email and password required." }, 400);
+  const createRes = await fetch(`${crmUrl}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: body.email, password: body.password, email_confirm: true }),
+  });
+  if (!createRes.ok) {
+    const txt = await createRes.text();
+    if (/already.*registered|already exists|duplicate/i.test(txt)) {
+      return json({ error: "A login already exists for that email." }, 409);
+    }
+    return json({ error: `Could not create login: ${txt}` }, 400);
+  }
+  return json({ ok: true });
+}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  createPartnerLogin,
   loadIntros,
   loadPartnerEvents,
   loadPartners,
@@ -12,7 +13,13 @@ import {
   type PartnerIntro,
 } from "../lib/partners";
 import { fmtDate } from "../lib/format";
+import { supabaseEnabled } from "../lib/store";
 import type { Firm } from "../types";
+
+function genPassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 14 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
 
 /*
  * Team-side admin for the partner portal: manage partners, review their
@@ -232,22 +239,59 @@ function PartnerEditor({
   onSaved: () => void;
 }) {
   const [p, setP] = useState<Partner>({ ...partner });
+  const [password, setPassword] = useState(partner.id ? "" : genPassword());
+  const [makeLogin, setMakeLogin] = useState(!partner.id);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [done, setDone] = useState("");
+  const isNew = !p.id;
 
   async function save() {
     if (!p.name.trim() || !p.email.trim()) {
       setErr("Name and email are required.");
       return;
     }
+    if (isNew && makeLogin && supabaseEnabled && password.length < 8) {
+      setErr("Password must be at least 8 characters.");
+      return;
+    }
     setBusy(true);
+    setErr("");
     try {
       await savePartner({ ...p, id: p.id || undefined });
+      // One-click login creation (production only).
+      if (isNew && makeLogin && supabaseEnabled) {
+        await createPartnerLogin(p.email.trim(), password);
+        setDone(
+          `Login created. Share these with ${p.name.split(" ")[0]}:\n\n${p.email.trim()}\n${password}\n\nThey sign in at crm.thenest.com.au.`,
+        );
+        setBusy(false);
+        return; // keep the drawer open so the credentials can be copied
+      }
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Save failed");
       setBusy(false);
     }
+  }
+
+  if (done) {
+    return (
+      <>
+        <div className="scrim" onClick={onSaved} />
+        <div className="drawer">
+          <button className="close" onClick={onSaved}>×</button>
+          <h2>Partner added ✓</h2>
+          <div className="notice" style={{ whiteSpace: "pre-wrap", borderColor: "#2a4a34", color: "#cfe8d5" }}>
+            {done}
+          </div>
+          <div className="sub">Copy the password now — it isn't stored anywhere and can't be shown again.</div>
+          <div className="actions">
+            <button className="btn primary" onClick={onSaved}>Done</button>
+          </div>
+        </div>
+      </>
+    );
   }
 
   return (
@@ -256,10 +300,6 @@ function PartnerEditor({
       <div className="drawer">
         <button className="close" onClick={onClose}>×</button>
         <h2>{p.id ? p.name : "New partner"}</h2>
-        <div className="notice">
-          After saving, create this person's login in Supabase → Authentication → Users with the
-          <b> same email</b>, so they can sign in to the portal.
-        </div>
         <div className="fgrid">
           <div className="f"><label>Name</label>
             <input value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} /></div>
@@ -272,9 +312,35 @@ function PartnerEditor({
           <div className="f full"><label>Fee terms</label>
             <textarea rows={3} value={p.fee_terms ?? ""} onChange={(e) => setP({ ...p, fee_terms: e.target.value })} /></div>
         </div>
+
+        {isNew && supabaseEnabled && (
+          <>
+            <div className="sect">Portal login</div>
+            <label className="tickrow" style={{ marginBottom: 8 }}>
+              <input type="checkbox" checked={makeLogin} onChange={(e) => setMakeLogin(e.target.checked)} />
+              Create their sign-in now
+            </label>
+            {makeLogin && (
+              <div className="f full">
+                <label>
+                  Temporary password{" "}
+                  <button className="dbtn" onClick={() => setPassword(genPassword())} title="Regenerate">↻</button>
+                </label>
+                <input value={password} onChange={(e) => setPassword(e.target.value)} />
+                <div className="sub" style={{ marginTop: 4 }}>You'll get the credentials to share after saving.</div>
+              </div>
+            )}
+          </>
+        )}
+        {isNew && !supabaseEnabled && (
+          <div className="notice">Running in local mode — logins are created only in production.</div>
+        )}
+
         {err && <div className="err" style={{ color: "var(--red)", marginTop: 8 }}>{err}</div>}
         <div className="actions">
-          <button className="btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save"}</button>
+          <button className="btn primary" disabled={busy} onClick={save}>
+            {busy ? "Saving…" : isNew && makeLogin && supabaseEnabled ? "Save & create login" : "Save"}
+          </button>
           <button className="btn" onClick={onClose}>Cancel</button>
         </div>
       </div>
