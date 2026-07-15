@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { CallSheet } from "./components/CallSheet";
+import { CollateralAdmin } from "./components/CollateralAdmin";
 import { FirmDrawer } from "./components/FirmDrawer";
+import { PartnersAdmin } from "./components/PartnersAdmin";
 import { LiveFundsView } from "./components/LiveFundsView";
 import { MasterView } from "./components/MasterView";
 import { PipelineView } from "./components/PipelineView";
@@ -37,6 +39,8 @@ import {
   type PlatformFund,
   type SpifEvent,
 } from "./lib/store";
+import { loadMyPartner, type Partner } from "./lib/partners";
+import { PartnerPortal } from "./components/PartnerPortal";
 import { checkPassword, TEAM, userByEmail, userById, type TeamUser } from "./lib/users";
 import type { Deal, Firm } from "./types";
 
@@ -46,7 +50,7 @@ const ONBOARDING_URL =
 
 const AUTH_KEY = "nest_crm_user";
 
-type Tab = "universe" | "pipeline" | "funds" | "spif" | "deals";
+type Tab = "universe" | "pipeline" | "funds" | "spif" | "deals" | "partners" | "collateral";
 
 export default function App() {
   // With Supabase configured, sign-in is a real Supabase Auth account.
@@ -54,15 +58,28 @@ export default function App() {
   return supabaseEnabled ? <SupabaseApp /> : <LocalApp />;
 }
 
+// A signed-in identity is either a team member (full CRM) or a partner (portal).
+type Session =
+  | { kind: "team"; user: TeamUser }
+  | { kind: "partner"; partner: Partner };
+
+async function resolveSession(email: string | undefined): Promise<Session | null> {
+  const team = userByEmail(email);
+  if (team) return { kind: "team", user: team };
+  const partner = await loadMyPartner(email ?? "");
+  if (partner) return { kind: "partner", partner };
+  return null;
+}
+
 function SupabaseApp() {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<TeamUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     client()
       .auth.getSession()
-      .then(({ data }) => {
-        setUser(userByEmail(data.session?.user?.email));
+      .then(async ({ data }) => {
+        setSession(await resolveSession(data.session?.user?.email));
         setLoading(false);
       });
   }, []);
@@ -70,21 +87,21 @@ function SupabaseApp() {
   if (loading) {
     return <div className="gate">Signing in…</div>;
   }
-  if (!user) {
-    return <EmailGate onSignedIn={setUser} />;
+  if (!session) {
+    return <EmailGate onSignedIn={setSession} />;
   }
-  return (
-    <Crm
-      user={user}
-      onSignOut={() => {
-        void client().auth.signOut();
-        setUser(null);
-      }}
-    />
+  const onSignOut = () => {
+    void client().auth.signOut();
+    setSession(null);
+  };
+  return session.kind === "team" ? (
+    <Crm user={session.user} onSignOut={onSignOut} />
+  ) : (
+    <PartnerPortal partner={session.partner} onSignOut={onSignOut} />
   );
 }
 
-function EmailGate({ onSignedIn }: { onSignedIn: (user: TeamUser) => void }) {
+function EmailGate({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
@@ -102,14 +119,14 @@ function EmailGate({ onSignedIn }: { onSignedIn: (user: TeamUser) => void }) {
       setBusy(false);
       return;
     }
-    const u = userByEmail(data.user?.email);
-    if (!u) {
-      setErr(`${data.user?.email} has no CRM profile — add it in src/lib/users.ts.`);
+    const s = await resolveSession(data.user?.email);
+    if (!s) {
+      setErr(`${data.user?.email} isn't set up for access. Contact The Nest.`);
       await client().auth.signOut();
       setBusy(false);
       return;
     }
-    onSignedIn(u);
+    onSignedIn(s);
   }
 
   return (
@@ -440,6 +457,12 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
             Deals
           </button>
         )}
+        <button className={tab === "partners" ? "on" : ""} onClick={() => setTab("partners")}>
+          Partners
+        </button>
+        <button className={tab === "collateral" ? "on" : ""} onClick={() => setTab("collateral")}>
+          Collateral
+        </button>
         <div style={{ flex: 1 }} />
         {toughCount > 0 && (
           <button
@@ -554,6 +577,8 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
           onReorder={handleDealReorder}
         />
       )}
+      {firms && tab === "partners" && <PartnersAdmin firms={firms} />}
+      {tab === "collateral" && <CollateralAdmin userName={user.name} />}
 
       {sheetOpen && firms && (
         <CallSheet
