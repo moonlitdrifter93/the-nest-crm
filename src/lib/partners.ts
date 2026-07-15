@@ -174,6 +174,26 @@ export async function logPartnerEvent(
   if (error) throw new Error(`Log event failed: ${error.message}`);
 }
 
+export async function deletePartnerEvent(id: number): Promise<void> {
+  const { error } = await client().from("partner_events").delete().eq("id", id);
+  if (error) throw new Error(`Delete failed: ${error.message}`);
+}
+
+// Admin: create an introduction on a partner's behalf (allocate).
+export async function adminAddIntro(
+  intro: Pick<PartnerIntro, "partner_id" | "kind" | "name" | "contact_email" | "contact_note" | "status">,
+): Promise<void> {
+  const { error } = await client().from("partner_intros").insert({
+    partner_id: intro.partner_id,
+    kind: intro.kind,
+    name: intro.name,
+    contact_email: intro.contact_email ?? null,
+    contact_note: intro.contact_note ?? null,
+    status: intro.status,
+  });
+  if (error) throw new Error(`Add failed: ${error.message}`);
+}
+
 /* ---------- collateral ---------- */
 
 export interface Collateral {

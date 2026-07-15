@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  adminAddIntro,
   createPartnerLogin,
+  deletePartnerEvent,
   loadIntros,
   loadPartnerEvents,
   loadPartners,
+  logPartnerEvent,
   savePartner,
   updateIntro,
+  type IntroKind,
   type IntroStatus,
   type FeeStatus,
   type Partner,
@@ -35,6 +39,8 @@ export function PartnersAdmin({ firms }: { firms: Firm[] }) {
   const [events, setEvents] = useState<PartnerEvent[]>([]);
   const [editing, setEditing] = useState<Partner | null>(null);
   const [view, setView] = useState<"intros" | "partners" | "events">("intros");
+  const [allocEvent, setAllocEvent] = useState(false);
+  const [allocIntro, setAllocIntro] = useState(false);
 
   const refresh = () => {
     loadPartners().then(setPartners).catch(() => {});
@@ -63,37 +69,58 @@ export function PartnersAdmin({ firms }: { firms: Firm[] }) {
       </div>
 
       {view === "intros" && (
-        <IntrosAdmin intros={intros} firms={firms} onSaved={refresh} />
+        <>
+          <button className="btn primary" style={{ marginBottom: 12 }} onClick={() => setAllocIntro(true)}>
+            + Add / allocate introduction
+          </button>
+          <IntrosAdmin intros={intros} firms={firms} onSaved={refresh} />
+        </>
       )}
 
       {view === "events" && (
-        <div className="tbl-wrap">
-          <table className="grid">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Event</th>
-                <th>Partner</th>
-                <th>Type</th>
-                <th>Location</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((e) => (
-                <tr key={e.id}>
-                  <td className="mono">{e.event_date ? fmtDate(e.event_date) : "—"}</td>
-                  <td>{e.title}</td>
-                  <td>{e.partners?.name ?? "—"}</td>
-                  <td>{e.kind || "—"}</td>
-                  <td>{e.location || "—"}</td>
-                  <td><span className="sub">{e.notes || ""}</span></td>
+        <>
+          <button className="btn primary" style={{ marginBottom: 12 }} onClick={() => setAllocEvent(true)}>
+            + Allocate event to a partner
+          </button>
+          <div className="tbl-wrap">
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Event</th>
+                  <th>Partner</th>
+                  <th>Type</th>
+                  <th>Location</th>
+                  <th>Notes</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {events.length === 0 && <div className="empty">No events logged yet.</div>}
-        </div>
+              </thead>
+              <tbody>
+                {events.map((e) => (
+                  <tr key={e.id}>
+                    <td className="mono">{e.event_date ? fmtDate(e.event_date) : "—"}</td>
+                    <td>{e.title}</td>
+                    <td>{e.partners?.name ?? "—"}</td>
+                    <td>{e.kind || "—"}</td>
+                    <td>{e.location || "—"}</td>
+                    <td><span className="sub">{e.notes || ""}</span></td>
+                    <td>
+                      <button
+                        className="dbtn danger"
+                        onClick={() => {
+                          if (e.id && window.confirm(`Delete "${e.title}"?`)) deletePartnerEvent(e.id).then(refresh).catch(() => {});
+                        }}
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {events.length === 0 && <div className="empty">No events yet.</div>}
+          </div>
+        </>
       )}
 
       {view === "partners" && (
@@ -138,7 +165,118 @@ export function PartnersAdmin({ firms }: { firms: Firm[] }) {
       {editing && (
         <PartnerEditor partner={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />
       )}
+      {allocEvent && (
+        <AllocateEvent partners={partners} onClose={() => setAllocEvent(false)} onSaved={() => { setAllocEvent(false); refresh(); }} />
+      )}
+      {allocIntro && (
+        <AllocateIntro partners={partners} onClose={() => setAllocIntro(false)} onSaved={() => { setAllocIntro(false); refresh(); }} />
+      )}
     </div>
+  );
+}
+
+function AllocateEvent({ partners, onClose, onSaved }: { partners: Partner[]; onClose: () => void; onSaved: () => void }) {
+  const [partnerId, setPartnerId] = useState(partners[0]?.id ?? "");
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [kind, setKind] = useState("");
+  const [location, setLocation] = useState("");
+  const [notes, setNotes] = useState("");
+  const [err, setErr] = useState("");
+
+  async function save() {
+    if (!partnerId || !title.trim()) {
+      setErr("Pick a partner and add a title.");
+      return;
+    }
+    try {
+      await logPartnerEvent({ partner_id: partnerId, title: title.trim(), event_date: date, kind: kind.trim(), location: location.trim(), notes: notes.trim() });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    }
+  }
+
+  return (
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className="drawer">
+        <button className="close" onClick={onClose}>×</button>
+        <h2>Allocate event</h2>
+        <div className="fgrid">
+          <div className="f full"><label>Partner</label>
+            <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
+              {partners.map((p) => <option key={p.id} value={p.id}>{p.name}{p.company ? ` — ${p.company}` : ""}</option>)}
+            </select></div>
+          <div className="f full"><label>Title</label><input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+          <div className="f"><label>Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div className="f"><label>Type</label><input placeholder="dinner, webinar…" value={kind} onChange={(e) => setKind(e.target.value)} /></div>
+          <div className="f full"><label>Location</label><input value={location} onChange={(e) => setLocation(e.target.value)} /></div>
+          <div className="f full"><label>Notes</label><textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+        </div>
+        {err && <div className="err" style={{ color: "var(--red)", marginTop: 8 }}>{err}</div>}
+        <div className="actions">
+          <button className="btn primary" onClick={save}>Allocate</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function AllocateIntro({ partners, onClose, onSaved }: { partners: Partner[]; onClose: () => void; onSaved: () => void }) {
+  const [partnerId, setPartnerId] = useState(partners[0]?.id ?? "");
+  const [kind, setKind] = useState<IntroKind>("investor");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [note, setNote] = useState("");
+  const [status, setStatus] = useState<IntroStatus>("Submitted");
+  const [err, setErr] = useState("");
+
+  async function save() {
+    if (!partnerId || !name.trim()) {
+      setErr("Pick a partner and add a name.");
+      return;
+    }
+    try {
+      await adminAddIntro({ partner_id: partnerId, kind, name: name.trim(), contact_email: email.trim(), contact_note: note.trim(), status });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    }
+  }
+
+  return (
+    <>
+      <div className="scrim" onClick={onClose} />
+      <div className="drawer">
+        <button className="close" onClick={onClose}>×</button>
+        <h2>Add introduction</h2>
+        <div className="fgrid">
+          <div className="f full"><label>Partner</label>
+            <select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
+              {partners.map((p) => <option key={p.id} value={p.id}>{p.name}{p.company ? ` — ${p.company}` : ""}</option>)}
+            </select></div>
+          <div className="f"><label>Type</label>
+            <select value={kind} onChange={(e) => setKind(e.target.value as IntroKind)}>
+              <option value="investor">Investor</option>
+              <option value="fund_manager">Fund manager</option>
+            </select></div>
+          <div className="f"><label>Stage</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value as IntroStatus)}>
+              {(["Submitted","In progress","Met","Converted","Declined"] as IntroStatus[]).map((s) => <option key={s}>{s}</option>)}
+            </select></div>
+          <div className="f full"><label>Name</label><input value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div className="f full"><label>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div className="f full"><label>Note</label><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></div>
+        </div>
+        {err && <div className="err" style={{ color: "var(--red)", marginTop: 8 }}>{err}</div>}
+        <div className="actions">
+          <button className="btn primary" onClick={save}>Add</button>
+          <button className="btn" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </>
   );
 }
 

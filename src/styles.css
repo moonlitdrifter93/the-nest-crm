@@ -790,3 +790,481 @@ td .sub {
   text-align: center;
   font-size: 14px;
 }
+
+/* ==================== PARTNER PORTAL (light, Base44-style) ==================== */
+.portal {
+  --pbg: #f4f6fb;
+  --pcard: #ffffff;
+  --pink: #eef2f9;
+  --pline: #e6eaf1;
+  --ptx: #1e2530;
+  --ptx2: #5b6472;
+  --ptx3: #97a0ad;
+  --pblue: #2f6bff;
+  --pblue-bg: #eaf1ff;
+  --pgreen: #10b981;
+  --pteal: #14b8a6;
+  min-height: 100vh;
+  display: flex;
+  background: linear-gradient(160deg, #f6f8fc 0%, #eef2f8 100%);
+  color: var(--ptx);
+  font-family: var(--sans);
+}
+.portal * {
+  box-sizing: border-box;
+}
+
+/* sidebar */
+.psidebar {
+  width: 244px;
+  min-width: 244px;
+  background: #fff;
+  border-right: 1px solid var(--pline);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 14px;
+  gap: 6px;
+}
+.pbrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 14px;
+}
+.pbrand .logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #14b8a6, #2f6bff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--serif);
+  font-size: 22px;
+}
+.pbrand .bt {
+  font-weight: 700;
+  font-size: 15px;
+}
+.pbrand .bs {
+  color: var(--ptx3);
+  font-size: 11px;
+}
+.pclient {
+  background: var(--pink);
+  border: 1px solid var(--pline);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 6px;
+}
+.pclient .badge2 {
+  display: inline-block;
+  background: #d6f5ec;
+  color: #0d9488;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 8px;
+  letter-spacing: 0.05em;
+}
+.pclient .cn {
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 8px;
+}
+.pclient .cd {
+  color: var(--ptx2);
+  font-size: 12px;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.pnav-label {
+  color: var(--ptx3);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 12px 8px 4px;
+}
+.pnav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: var(--ptx2);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+}
+.pnav:hover {
+  background: var(--pink);
+}
+.pnav.on {
+  background: var(--pblue-bg);
+  color: var(--pblue);
+  font-weight: 600;
+}
+.psidebar .spacer {
+  flex: 1;
+}
+
+/* main */
+.pmain {
+  flex: 1;
+  padding: 28px 34px;
+  overflow-x: auto;
+}
+.ph {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.ph h1 {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.ph .sub {
+  color: var(--ptx2);
+  font-size: 14px;
+  margin-top: 2px;
+}
+.ph .spacer {
+  flex: 1;
+}
+.pbtn {
+  background: var(--pblue);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.pbtn:hover {
+  filter: brightness(1.05);
+}
+.pbtn.teal {
+  background: var(--pteal);
+}
+.pbtn.ghost {
+  background: #fff;
+  color: var(--ptx);
+  border: 1px solid var(--pline);
+}
+
+/* stat tiles */
+.ptiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+@media (max-width: 1100px) {
+  .ptiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.ptile {
+  background: var(--pcard);
+  border: 1px solid var(--pline);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 1px 2px rgba(20, 30, 50, 0.04);
+}
+.ptile .tl {
+  color: var(--ptx2);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ptile .tv {
+  font-size: 30px;
+  font-weight: 800;
+  margin-top: 8px;
+  letter-spacing: -0.02em;
+}
+.ptile .tvsub {
+  color: var(--ptx3);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.ptile.hero {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+}
+.ptile.hero .tl,
+.ptile.hero .tvsub {
+  color: rgba(255, 255, 255, 0.85);
+}
+.ptile .ic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--pblue-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+/* generic panel */
+.ppanel {
+  background: var(--pcard);
+  border: 1px solid var(--pline);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(20, 30, 50, 0.04);
+}
+.ppanel h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.pcols2 {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 1000px) {
+  .pcols2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* activity feed */
+.pfeed {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--pline);
+}
+.pfeed:last-child {
+  border-bottom: none;
+}
+.pfeed .fic {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--pblue-bg);
+  color: var(--pblue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.pfeed .ft {
+  font-weight: 600;
+  font-size: 14px;
+}
+.pfeed .fd {
+  color: var(--ptx3);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+/* pipeline-by-stage bars */
+.pbar-row {
+  margin-bottom: 12px;
+}
+.pbar-row .lab {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+.pbar {
+  height: 7px;
+  background: var(--pink);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.pbar > span {
+  display: block;
+  height: 100%;
+  background: var(--pteal);
+  border-radius: 5px;
+}
+
+/* kanban */
+.pkan {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  align-items: flex-start;
+}
+.pkan-col {
+  min-width: 260px;
+  width: 260px;
+  flex: none;
+}
+.pkan-head {
+  border-radius: 11px;
+  padding: 11px 14px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.pkan-card {
+  background: #fff;
+  border: 1px solid var(--pline);
+  border-radius: 11px;
+  padding: 12px 13px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 2px rgba(20, 30, 50, 0.04);
+}
+.pkan-card .kn {
+  font-weight: 600;
+  font-size: 14px;
+}
+.pkan-card .kmeta {
+  color: var(--ptx2);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.ptag {
+  display: inline-block;
+  background: var(--pink);
+  color: var(--ptx2);
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 8px;
+  margin-top: 6px;
+}
+.pfee {
+  color: var(--pgreen);
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* light table */
+.ptable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--pline);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ptable th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--ptx3);
+  font-weight: 600;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--pline);
+  background: #fbfcfe;
+}
+.ptable td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--pline);
+  font-size: 14px;
+}
+.ptable tr:last-child td {
+  border-bottom: none;
+}
+.ptabs {
+  display: inline-flex;
+  background: #fff;
+  border: 1px solid var(--pline);
+  border-radius: 11px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.ptab {
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ptx2);
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.ptab.on {
+  background: var(--pink);
+  color: var(--ptx);
+}
+.psearch {
+  width: 100%;
+  border: 1px solid var(--pline);
+  border-radius: 11px;
+  padding: 11px 14px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--ptx);
+}
+.pinput {
+  width: 100%;
+  border: 1px solid var(--pline);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: #fff;
+  color: var(--ptx);
+}
+.pinput:focus,
+.psearch:focus {
+  outline: none;
+  border-color: var(--pblue);
+}
+.plabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ptx2);
+  margin-bottom: 5px;
+  display: block;
+}
+.pmodal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 28, 45, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 20px;
+}
+.pmodal .box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  width: min(460px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.pmodal h3 {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.pempty {
+  text-align: center;
+  color: var(--ptx3);
+  padding: 40px;
+  font-size: 14px;
+}
+.plink {
+  color: var(--pblue);
+  cursor: pointer;
+}
