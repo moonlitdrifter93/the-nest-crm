@@ -303,6 +303,20 @@ export async function loadPlatformFunds(): Promise<PlatformFund[]> {
   return (data ?? []) as PlatformFund[];
 }
 
+/* ---------- password reset (Supabase Auth) ---------- */
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  const { error } = await client().auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: window.location.origin,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function updatePassword(password: string): Promise<void> {
+  const { error } = await client().auth.updateUser({ password });
+  if (error) throw new Error(error.message);
+}
+
 export function newFirmId(name: string, existing: Set<string>): string {
   const base =
     name

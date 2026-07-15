@@ -33,8 +33,10 @@ import {
   newFirmId,
   reorderDeals,
   saveFirm,
+  sendPasswordReset,
   supabaseEnabled,
   updateDeal,
+  updatePassword,
   updateSpif,
   type PlatformFund,
   type SpifEvent,
@@ -74,6 +76,7 @@ async function resolveSession(email: string | undefined): Promise<Session | null
 function SupabaseApp() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const [recovery, setRecovery] = useState(false);
 
   useEffect(() => {
     client()
@@ -82,8 +85,17 @@ function SupabaseApp() {
         setSession(await resolveSession(data.session?.user?.email));
         setLoading(false);
       });
+    // A password-recovery link signs the user in with a recovery session and
+    // fires this event — show the "set a new password" screen.
+    const { data: sub } = client().auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
+  if (recovery) {
+    return <SetNewPassword onDone={() => window.location.replace(window.location.origin)} />;
+  }
   if (loading) {
     return <div className="gate">Signing in…</div>;
   }
@@ -102,9 +114,11 @@ function SupabaseApp() {
 }
 
 function EmailGate({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
+  const [mode, setMode] = useState<"signin" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
+  const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit() {
@@ -129,15 +143,32 @@ function EmailGate({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
     onSignedIn(s);
   }
 
+  async function reset() {
+    if (!email.trim()) {
+      setErr("Enter your email first.");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      await sendPasswordReset(email);
+      setNote("Check your inbox for a reset link. It opens back here to set a new password.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't send reset email.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="gate">
       <h1>The Nest</h1>
-      <div className="sub">Fund Manager CRM</div>
+      <div className="sub">{mode === "reset" ? "Reset password" : "Fund Manager CRM"}</div>
       <form
         style={{ flexDirection: "column", alignItems: "stretch" }}
         onSubmit={(e) => {
           e.preventDefault();
-          void submit();
+          void (mode === "reset" ? reset() : submit());
         }}
       >
         <input
@@ -150,17 +181,84 @@ function EmailGate({ onSignedIn }: { onSignedIn: (s: Session) => void }) {
             setErr("");
           }}
         />
-        <input
-          type="password"
-          placeholder="Password"
-          value={pw}
-          onChange={(e) => {
-            setPw(e.target.value);
-            setErr("");
-          }}
-        />
+        {mode === "signin" && (
+          <input
+            type="password"
+            placeholder="Password"
+            value={pw}
+            onChange={(e) => {
+              setPw(e.target.value);
+              setErr("");
+            }}
+          />
+        )}
         <button className="btn primary" type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
+          {busy
+            ? mode === "reset"
+              ? "Sending…"
+              : "Signing in…"
+            : mode === "reset"
+              ? "Send reset link"
+              : "Sign in"}
+        </button>
+      </form>
+      <button
+        onClick={() => {
+          setMode(mode === "reset" ? "signin" : "reset");
+          setErr("");
+          setNote("");
+        }}
+        style={{ color: "var(--tx3)", fontSize: 13 }}
+      >
+        {mode === "reset" ? "← Back to sign in" : "Forgot password?"}
+      </button>
+      {note && <div className="sub" style={{ color: "#6ec98a", maxWidth: 320, textAlign: "center" }}>{note}</div>}
+      {err && <div className="err">{err}</div>}
+    </div>
+  );
+}
+
+function SetNewPassword({ onDone }: { onDone: () => void }) {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (pw.length < 8) {
+      setErr("Use at least 8 characters.");
+      return;
+    }
+    if (pw !== pw2) {
+      setErr("Passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      await updatePassword(pw);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't update password.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="gate">
+      <h1>The Nest</h1>
+      <div className="sub">Set a new password</div>
+      <form
+        style={{ flexDirection: "column", alignItems: "stretch" }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <input type="password" placeholder="New password" value={pw} autoFocus onChange={(e) => setPw(e.target.value)} />
+        <input type="password" placeholder="Confirm password" value={pw2} onChange={(e) => setPw2(e.target.value)} />
+        <button className="btn primary" type="submit" disabled={busy}>
+          {busy ? "Saving…" : "Save password"}
         </button>
       </form>
       {err && <div className="err">{err}</div>}
