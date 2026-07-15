@@ -44,10 +44,24 @@ async function rest(base, key, path, init = {}) {
     },
   });
   if (!res.ok) throw new Error(`${path}: HTTP ${res.status} ${await res.text()}`);
-  return res.status === 204 ? null : res.json();
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
-// 1. Pull firms and products from the platform.
+// uid -> email for the platform's internal accounts, so allocation can be
+// filtered per person (Raph only sees the funds allocated to him).
+async function loadPlatformUsers() {
+  const res = await fetch(`${PLATFORM_URL}/auth/v1/admin/users?per_page=500`, {
+    headers: { apikey: PLATFORM_KEY, Authorization: `Bearer ${PLATFORM_KEY}` },
+  });
+  const map = new Map();
+  if (!res.ok) return map;
+  const data = await res.json();
+  for (const u of data.users ?? []) if (u.email) map.set(u.id, u.email);
+  return map;
+}
+
+// 1. Pull firms and ALL non-archived products (draft, signed_off, approved).
 const firms = await rest(
   PLATFORM_URL,
   PLATFORM_KEY,
@@ -56,14 +70,34 @@ const firms = await rest(
 const products = await rest(
   PLATFORM_URL,
   PLATFORM_KEY,
-  "fund_products?select=firm_id,status,is_visible_for_investors,asset_class_names&is_archived=eq.false&status=eq.approved",
+  "fund_products?select=firm_id,status,is_visible_for_investors,asset_class_names,onboarded_by_auth_user_uid&is_archived=eq.false",
 );
 
-// 2. Aggregate approved/live products per firm.
+// Who is allocated to each firm on the platform (firm-level sub-admins).
+const allocs = await rest(
+  PLATFORM_URL,
+  PLATFORM_KEY,
+  "firm_sub_admin_allocations?select=firm_id,sub_admin_auth_user_uid",
+);
+const uidEmail = await loadPlatformUsers();
+
+const firmEmails = new Map();
+const addEmail = (firmId, uid) => {
+  const email = uid ? uidEmail.get(uid) : undefined;
+  if (!email) return;
+  const s = firmEmails.get(firmId) ?? new Set();
+  s.add(email.toLowerCase());
+  firmEmails.set(firmId, s);
+};
+for (const a of allocs) addEmail(a.firm_id, a.sub_admin_auth_user_uid);
+for (const p of products) addEmail(p.firm_id, p.onboarded_by_auth_user_uid);
+
+// 2. Aggregate approved/draft/live products per firm.
 const byFirm = new Map();
 for (const p of products) {
-  const agg = byFirm.get(p.firm_id) ?? { approved: 0, live: 0, classes: new Set() };
-  agg.approved += 1;
+  const agg = byFirm.get(p.firm_id) ?? { approved: 0, live: 0, draft: 0, classes: new Set() };
+  if (p.status === "approved") agg.approved += 1;
+  else agg.draft += 1; // draft + signed_off
   if (p.is_visible_for_investors) agg.live += 1;
   for (const c of (p.asset_class_names || "").split(",")) {
     const t = c.trim();
@@ -84,12 +118,14 @@ const rows = firms
       fum: f.current_fum_value ?? null,
       approved_products: agg.approved,
       live_products: agg.live,
+      draft_products: agg.draft,
       asset_classes: [...agg.classes].sort().join(", ") || null,
+      owner_emails: [...(firmEmails.get(f.id) ?? [])].sort().join(",") || null,
       synced_at: new Date().toISOString(),
     };
   });
 
-console.log(`Platform: ${firms.length} firms, ${products.length} approved products → ${rows.length} live fund rows.`);
+console.log(`Platform: ${firms.length} firms, ${products.length} products (incl. drafts) → ${rows.length} fund rows.`);
 
 // 3. Replace the mirror in the CRM project.
 await rest(CRM_URL, CRM_KEY, "platform_funds?firm_id=gte.0", { method: "DELETE" });

@@ -287,7 +287,9 @@ export interface PlatformFund {
   fum?: number | null;
   approved_products: number;
   live_products: number;
+  draft_products?: number;
   asset_classes?: string | null;
+  owner_emails?: string | null; // comma-separated allocated sub-admin emails
   synced_at: string;
 }
 

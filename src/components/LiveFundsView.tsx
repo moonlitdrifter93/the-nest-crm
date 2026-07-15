@@ -32,12 +32,20 @@ export function LiveFundsView({
     return m;
   }, [firms]);
 
+  // Admin sees every platform fund; everyone else sees only the funds they're
+  // allocated to on The Nest (firm sub-admin / product owner, matched by email).
   const visiblePlatform = useMemo(() => {
     if (!platform) return [];
     if (user.seesAllFunds) return platform;
-    const visible = new Set(funds.map((f) => f.name.toLowerCase().trim()));
-    return platform.filter((p) => visible.has(p.firm_name.toLowerCase().trim()));
-  }, [platform, user, funds]);
+    const me = (user.email ?? "").toLowerCase();
+    return platform.filter((p) =>
+      (p.owner_emails ?? "")
+        .toLowerCase()
+        .split(",")
+        .map((e) => e.trim())
+        .includes(me),
+    );
+  }, [platform, user]);
 
   const scope = user.seesAllFunds
     ? "all funds · full view"
@@ -61,7 +69,7 @@ export function LiveFundsView({
           On The Nest — platform data
           <span className="hint">
             {visiblePlatform.length > 0
-              ? `${visiblePlatform.length} firms with approved products · synced ${fmtDate(syncedAt?.slice(0, 10))} · ${scope}`
+              ? `${visiblePlatform.length} firms (live + drafts) · synced ${fmtDate(syncedAt?.slice(0, 10))} · ${scope}`
               : "synced from the production database"}
           </span>
         </div>
@@ -78,8 +86,9 @@ export function LiveFundsView({
                 <tr>
                   <th>Firm</th>
                   <th>Plan</th>
-                  <th>Live products</th>
+                  <th>Live</th>
                   <th>Approved</th>
+                  <th>Draft</th>
                   <th>Asset classes</th>
                   <th>City</th>
                   <th>FUM</th>
@@ -105,6 +114,7 @@ export function LiveFundsView({
                       </td>
                       <td className="mono">{p.live_products}</td>
                       <td className="mono">{p.approved_products}</td>
+                      <td className="mono">{p.draft_products ?? 0}</td>
                       <td>
                         <span className="sub">{p.asset_classes || "—"}</span>
                       </td>

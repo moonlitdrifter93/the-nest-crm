@@ -65,16 +65,45 @@ async function syncPlatform(env: Env, crmUrl: string, crmKey: string): Promise<s
     pKey,
     "firms?select=id,name,is_enterprise,head_office_city,current_fum_value&is_archived=eq.false",
   )) as Array<Record<string, unknown>>;
+  // All non-archived products (draft, signed_off and approved), not just live.
   const products = (await rest(
     pUrl,
     pKey,
-    "fund_products?select=firm_id,is_visible_for_investors,asset_class_names&is_archived=eq.false&status=eq.approved",
-  )) as Array<{ firm_id: number; is_visible_for_investors: boolean; asset_class_names: string }>;
+    "fund_products?select=firm_id,status,is_visible_for_investors,asset_class_names,onboarded_by_auth_user_uid&is_archived=eq.false",
+  )) as Array<{
+    firm_id: number;
+    status: string;
+    is_visible_for_investors: boolean;
+    asset_class_names: string;
+    onboarded_by_auth_user_uid: string | null;
+  }>;
 
-  const byFirm = new Map<number, { approved: number; live: number; classes: Set<string> }>();
+  // Who is allocated to each firm on the platform (firm-level sub-admins).
+  const allocs = (await rest(
+    pUrl,
+    pKey,
+    "firm_sub_admin_allocations?select=firm_id,sub_admin_auth_user_uid",
+  )) as Array<{ firm_id: number; sub_admin_auth_user_uid: string }>;
+
+  // Map internal auth uid -> email so allocation can be filtered per person.
+  const uidEmail = await loadPlatformUsers(pUrl, pKey);
+
+  const firmEmails = new Map<number, Set<string>>();
+  const add = (firmId: number, uid: string | null) => {
+    const email = uid ? uidEmail.get(uid) : undefined;
+    if (!email) return;
+    const s = firmEmails.get(firmId) ?? new Set<string>();
+    s.add(email.toLowerCase());
+    firmEmails.set(firmId, s);
+  };
+  for (const a of allocs) add(a.firm_id, a.sub_admin_auth_user_uid);
+  for (const p of products) add(p.firm_id, p.onboarded_by_auth_user_uid);
+
+  const byFirm = new Map<number, { approved: number; live: number; draft: number; classes: Set<string> }>();
   for (const p of products) {
-    const agg = byFirm.get(p.firm_id) ?? { approved: 0, live: 0, classes: new Set<string>() };
-    agg.approved += 1;
+    const agg = byFirm.get(p.firm_id) ?? { approved: 0, live: 0, draft: 0, classes: new Set<string>() };
+    if (p.status === "approved") agg.approved += 1;
+    else agg.draft += 1; // draft + signed_off
     if (p.is_visible_for_investors) agg.live += 1;
     for (const c of (p.asset_class_names || "").split(",")) {
       const t = c.trim();
@@ -94,7 +123,9 @@ async function syncPlatform(env: Env, crmUrl: string, crmKey: string): Promise<s
         fum: f.current_fum_value ?? null,
         approved_products: agg.approved,
         live_products: agg.live,
+        draft_products: agg.draft,
         asset_classes: [...agg.classes].sort().join(", ") || null,
+        owner_emails: [...(firmEmails.get(f.id as number) ?? [])].sort().join(",") || null,
         synced_at: new Date().toISOString(),
       };
     });
@@ -106,7 +137,19 @@ async function syncPlatform(env: Env, crmUrl: string, crmKey: string): Promise<s
       body: JSON.stringify(rows),
     });
   }
-  return `platform sync: ${rows.length} live funds`;
+  return `platform sync: ${rows.length} firms (incl. drafts), allocations mapped`;
+}
+
+// uid -> email for the platform's internal accounts.
+async function loadPlatformUsers(pUrl: string, pKey: string): Promise<Map<string, string>> {
+  const res = await fetch(`${pUrl}/auth/v1/admin/users?per_page=500`, {
+    headers: { apikey: pKey, Authorization: `Bearer ${pKey}` },
+  });
+  const map = new Map<string, string>();
+  if (!res.ok) return map;
+  const data = (await res.json()) as { users?: Array<{ id: string; email?: string }> };
+  for (const u of data.users ?? []) if (u.email) map.set(u.id, u.email);
+  return map;
 }
 
 const esc = (s: string) =>
