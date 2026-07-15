@@ -164,6 +164,12 @@ returns boolean language sql stable as $$
   );
 $$;
 
+-- The partner portal is administered by Matthew only.
+create or replace function public.is_admin()
+returns boolean language sql stable as $$
+  select coalesce(auth.jwt() ->> 'email', '') = 'matthew.downing@thenest.com.au';
+$$;
+
 -- ---------- lock the CRM tables to the team ----------
 -- firms
 drop policy if exists "team read" on public.firms;
@@ -210,8 +216,8 @@ returns uuid language sql stable as $$
 $$;
 
 alter table public.partners enable row level security;
-create policy "team manage partners" on public.partners for all to authenticated
-  using (public.is_team()) with check (public.is_team());
+create policy "admin manage partners" on public.partners for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
 create policy "partner sees self" on public.partners for select to authenticated
   using (id = public.my_partner_id());
 
@@ -236,8 +242,8 @@ create table if not exists public.partner_intros (
 alter table public.partner_intros enable row level security;
 
 -- team: full access
-create policy "team all intros" on public.partner_intros for all to authenticated
-  using (public.is_team()) with check (public.is_team());
+create policy "admin all intros" on public.partner_intros for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
 -- partner: read own, submit own; may edit only their own note fields
 create policy "partner reads own intros" on public.partner_intros for select to authenticated
   using (partner_id = public.my_partner_id());
@@ -256,8 +262,8 @@ create table if not exists public.partner_events (
   created_at timestamptz not null default now()
 );
 alter table public.partner_events enable row level security;
-create policy "team all events" on public.partner_events for all to authenticated
-  using (public.is_team()) with check (public.is_team());
+create policy "admin all events" on public.partner_events for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
 create policy "partner reads own events" on public.partner_events for select to authenticated
   using (partner_id = public.my_partner_id());
 create policy "partner logs events" on public.partner_events for insert to authenticated

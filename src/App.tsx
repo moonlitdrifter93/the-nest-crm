@@ -457,9 +457,11 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
             Deals
           </button>
         )}
-        <button className={tab === "partners" ? "on" : ""} onClick={() => setTab("partners")}>
-          Partners
-        </button>
+        {user.seesAllFunds && (
+          <button className={tab === "partners" ? "on" : ""} onClick={() => setTab("partners")}>
+            Partners
+          </button>
+        )}
         <button className={tab === "collateral" ? "on" : ""} onClick={() => setTab("collateral")}>
           Collateral
         </button>
@@ -577,7 +579,7 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
           onReorder={handleDealReorder}
         />
       )}
-      {firms && tab === "partners" && <PartnersAdmin firms={firms} />}
+      {firms && tab === "partners" && user.seesAllFunds && <PartnersAdmin firms={firms} />}
       {tab === "collateral" && <CollateralAdmin userName={user.name} />}
 
       {sheetOpen && firms && (

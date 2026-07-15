@@ -303,7 +303,8 @@ export default {
   },
 };
 
-const TEAM_EMAILS = new Set(RECIPIENTS.map((r) => r.email.toLowerCase()));
+// The partner portal is administered by Matthew only.
+const ADMIN_EMAIL = "matthew.downing@thenest.com.au";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -325,8 +326,8 @@ async function createPartner(request: Request, env: Env): Promise<Response> {
   });
   if (!whoRes.ok) return json({ error: "Session invalid." }, 401);
   const who = (await whoRes.json()) as { email?: string };
-  if (!who.email || !TEAM_EMAILS.has(who.email.toLowerCase())) {
-    return json({ error: "Only The Nest team can create partner logins." }, 403);
+  if (!who.email || who.email.toLowerCase() !== ADMIN_EMAIL) {
+    return json({ error: "Only the partner-portal admin can create partner logins." }, 403);
   }
 
   // 2. Create the auth user with the service key.
