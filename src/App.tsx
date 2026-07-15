@@ -652,7 +652,12 @@ function Crm({ user, onSignOut }: { user: TeamUser; onSignOut: () => void }) {
         />
       )}
       {firms && tab === "pipeline" && (
-        <PipelineView firms={firms} onOpen={(f) => setOpenId(f.id)} toughRequest={toughNonce} />
+        <PipelineView
+          firms={firms}
+          onOpen={(f) => setOpenId(f.id)}
+          onMove={(f, status) => void handleSave({ ...f, status })}
+          toughRequest={toughNonce}
+        />
       )}
       {firms && tab === "funds" && (
         <LiveFundsView firms={firms} user={user} onOpen={(f) => setOpenId(f.id)} />
